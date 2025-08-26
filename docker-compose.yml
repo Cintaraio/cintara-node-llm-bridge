@@ -57,11 +57,23 @@ services:
     expose: ["8000"]
 
   bridge:
-    build: ./bridge
+    build:
+      context: ./bridge
+    container_name: bridge
+    restart: unless-stopped
     environment:
       - LLAMA_SERVER_URL=http://llama:8000
+      - NODE_RPC=http://cintara-node:26657
+      - BRIDGE_LOG_LEVEL=${BRIDGE_LOG_LEVEL:-info}
     depends_on:
       llama:
-        condition: service_started
+        condition: service_healthy
+      cintara-node:
+        condition: service_healthy
     ports:
       - "8080:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/health > /dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
