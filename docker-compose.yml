@@ -60,8 +60,14 @@ services:
     build: ./bridge
     environment:
       - LLAMA_SERVER_URL=http://llama:8000
+      - CINTARA_NODE_URL=http://cintara-node:26657
+      - LOG_PATH=/shared/logs
+    volumes:
+      - ./data:/shared:ro  # Read-only access to node data
     depends_on:
       llama:
         condition: service_started
+      cintara-node:
+        condition: service_healthy
     ports:
       - "8080:8080"
