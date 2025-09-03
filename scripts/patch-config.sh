@@ -30,4 +30,17 @@ else
     sed -i '/^\[p2p\]/a external_address = "tcp://'$PUBIP':'$P2P'"' "$CONF"
 fi
 
-echo "[patcher] Configuration patched successfully"
+# Add persistent peers from official Cintara testnet script
+echo "[patcher] Adding persistent peers from official testnet configuration..."
+PERSISTENT_PEERS="556fb5330315d3f2b6169fe810a87d26376a42e7@35.155.113.160:26656,d827e98de74dc26aada3b0bb4f7e78fbf3de75dd@35.82.72.170:26656,19675c9f2711234238d10233b10cacbe5576be27@52.32.249.156:26656"
+
+# Update persistent_peers setting
+if grep -q "^persistent_peers" "$CONF"; then
+    sed -i 's#^persistent_peers = ""#persistent_peers = "'$PERSISTENT_PEERS'"#g' "$CONF"
+    sed -i 's#^persistent_peers = ".*"#persistent_peers = "'$PERSISTENT_PEERS'"#g' "$CONF"
+else
+    # Find the [p2p] section and add persistent_peers after external_address
+    sed -i '/^external_address/a persistent_peers = "'$PERSISTENT_PEERS'"' "$CONF"
+fi
+
+echo "[patcher] Configuration patched successfully with persistent peers"

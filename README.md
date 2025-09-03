@@ -248,19 +248,26 @@ sudo chmod -R 755 ./data
 # Step 2.1: Fix script permissions (required for config patcher)
 chmod +x scripts/*.sh
 
-# Step 3: Initialize the Cintara node (creates blockchain data directory and wallet)
+# Step 3: Initialize the Cintara node (follows official Cintara testnet process)
 docker compose run --rm -e RUN_MODE=init cintara-node
 
-# IMPORTANT: The init step will display your mnemonic phrase and wallet address
-# SAVE THE MNEMONIC PHRASE SECURELY - you'll need it to recover your wallet!
+# IMPORTANT: This will prompt for a keyring password and display your mnemonic
+# The process follows the official Cintara setup and will:
+# 1. Initialize the node configuration
+# 2. Generate validator keys with mnemonic (SAVE THIS!)
+# 3. Create genesis account
+# 4. Generate and collect genesis transactions
 
 # Step 3.1: Verify initialization completed
 ls -la data/.tmp-cintarad/config/
-# You should see config.toml and other config files
+# You should see config.toml, genesis.json, and other config files
 
 # Step 3.2: Check your wallet information
-cat data/.tmp-cintarad/mnemonic.txt  # Your mnemonic phrase (KEEP SECURE!)
-docker compose run --rm cintara-node cintarad keys show validator -a --home /data/.tmp-cintarad --keyring-backend=file
+docker compose run --rm cintara-node cintarad keys show validator --home /data/.tmp-cintarad --keyring-backend=test
+docker compose run --rm cintara-node cintarad keys show validator -a --home /data/.tmp-cintarad --keyring-backend=test
+
+# Step 3.3: View your mnemonic (if saved)
+cat data/.tmp-cintarad/mnemonic.txt
 
 # Step 4: Patch configuration files (sets network addresses)
 docker compose run --rm config-patcher

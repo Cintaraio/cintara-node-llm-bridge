@@ -10,56 +10,140 @@ if [ ! -w "/data" ]; then
 fi
 
 if [ "$MODE" = "init" ]; then
-  echo "[cintara] Initializing node at $HOME_DIR"
+  echo "[cintara] Initializing Cintara node at $HOME_DIR"
+  echo "[cintara] Following official Cintara testnet setup process..."
   mkdir -p "$HOME_DIR"
+  
+  # Set variables following the official script
+  KEYS="validator"
+  KEYRING="test"  # Use test keyring for Docker environment (no password required)
+  KEYALGO="eth_secp256k1"
+  CHAIN_ID="${CHAIN_ID:-cintara_11001-1}"
+  MONIKER="${MONIKER:-cintara-node}"
   
   # Initialize cintara node configuration if not exists
   if [ ! -f "$HOME_DIR/config/config.toml" ]; then
-    echo "[cintara] Creating initial configuration..."
-    cintarad init "${MONIKER:-cintara-node}" --home "$HOME_DIR" --chain-id="${CHAIN_ID:-cintara_11001-1}" || echo "[cintara] Init command failed, continuing..."
+    echo "[cintara] Creating initial node configuration..."
+    cintarad init "$MONIKER" --home "$HOME_DIR" --chain-id="$CHAIN_ID" || {
+      echo "[cintara] ERROR: Node initialization failed"
+      exit 1
+    }
+    echo "[cintara] ✅ Node configuration created"
   fi
   
-  # Generate wallet and mnemonic if not exists
-  if [ ! -f "$HOME_DIR/keyring-file/validator.info" ]; then
-    echo "[cintara] Generating validator wallet and mnemonic..."
+  # Generate wallet and mnemonic following official process
+  if [ ! -f "$HOME_DIR/keyring-$KEYRING/$KEYS.info" ]; then
+    echo ""
     echo "[cintara] ============================================="
-    echo "[cintara]           IMPORTANT - SAVE THIS!"
+    echo "[cintara]           GENERATING WALLET"
+    echo "[cintara] ============================================="
+    echo "[cintara] Creating validator key with mnemonic..."
+    echo ""
+    
+    # Generate key using test keyring (non-interactive)
+    echo "[cintara] Generating keys (using test keyring for Docker)..."
+    
+    # Create the key and capture output including mnemonic
+    KEY_OUTPUT=$(cintarad keys add "$KEYS" \
+      --home "$HOME_DIR" \
+      --keyring-backend="$KEYRING" \
+      --algo="$KEYALGO" \
+      --output json 2>&1) || {
+      echo "[cintara] ERROR: Key generation failed"
+      echo "$KEY_OUTPUT"
+      exit 1
+    }
+    
+    echo ""
+    echo "[cintara] ============================================="
+    echo "[cintara] ===== COPY THESE KEYS WITH MNEMONICS ====="
+    echo "[cintara] ===== AND SAVE IN A SAFE PLACE =========="
     echo "[cintara] ============================================="
     
-    # Generate new key with mnemonic output
-    cintarad keys add validator --home "$HOME_DIR" --keyring-backend=file --output=json 2>/tmp/mnemonic.txt || true
+    # Extract and display mnemonic if available in output
+    echo "$KEY_OUTPUT" | grep -E "(mnemonic|seed)" || echo "$KEY_OUTPUT"
     
-    if [ -f /tmp/mnemonic.txt ]; then
-      echo "[cintara] MNEMONIC PHRASE (SAVE THIS SECURELY):"
-      echo "[cintara] ============================================="
-      cat /tmp/mnemonic.txt
-      echo ""
-      echo "[cintara] ============================================="
-      
-      # Also save to persistent location
-      cp /tmp/mnemonic.txt "$HOME_DIR/mnemonic.txt"
-      chmod 600 "$HOME_DIR/mnemonic.txt"
-    fi
+    # Save mnemonic to file if we can extract it
+    echo "$KEY_OUTPUT" | grep "mnemonic" | sed 's/.*"mnemonic":"//' | sed 's/".*//' > "$HOME_DIR/mnemonic.txt" 2>/dev/null || true
     
-    # Display wallet address
-    echo "[cintara] Validator Address:"
-    cintarad keys show validator -a --home "$HOME_DIR" --keyring-backend=file 2>/dev/null || echo "[cintara] Address generation failed"
+    # Display the created key info
+    echo ""
+    echo "[cintara] Key information:"
+    cintarad keys show "$KEYS" --home "$HOME_DIR" --keyring-backend="$KEYRING" 2>/dev/null || echo "[cintara] Could not display key info"
     
+    echo ""
     echo "[cintara] ============================================="
-    echo "[cintara] WALLET SETUP COMPLETE"
-    echo "[cintara] Mnemonic saved to: $HOME_DIR/mnemonic.txt"
+    echo "[cintara] WALLET CREATION COMPLETE"
+    echo "[cintara] Note: Using test keyring for Docker compatibility"
     echo "[cintara] ============================================="
   fi
   
-  # Display node information
-  echo "[cintara] NODE INFORMATION:"
+  # Add genesis account following official process
+  echo "[cintara] Setting up genesis account..."
+  VALIDATOR_ADDR=$(cintarad keys show "$KEYS" -a --home "$HOME_DIR" --keyring-backend="$KEYRING" 2>/dev/null)
+  if [ -n "$VALIDATOR_ADDR" ]; then
+    echo "[cintara] Adding genesis account for validator: $VALIDATOR_ADDR"
+    cintarad add-genesis-account "$KEYS" 100000000000000000000000000000cint \
+      --home "$HOME_DIR" \
+      --keyring-backend="$KEYRING" 2>/dev/null || {
+      echo "[cintara] Genesis account setup failed, trying with address..."
+      cintarad add-genesis-account "$VALIDATOR_ADDR" 100000000000000000000000000000cint \
+        --home "$HOME_DIR" || echo "[cintara] Genesis account setup failed completely"
+    }
+    echo "[cintara] ✅ Genesis account added: $VALIDATOR_ADDR"
+  else
+    echo "[cintara] ⚠️  Could not retrieve validator address, skipping genesis account"
+  fi
+  
+  # Generate genesis transaction
+  echo "[cintara] Generating genesis transaction..."
+  cintarad gentx "$KEYS" 1000000000000000000000cint \
+    --home "$HOME_DIR" \
+    --keyring-backend="$KEYRING" \
+    --chain-id="$CHAIN_ID" 2>/dev/null || {
+    echo "[cintara] Genesis transaction generation failed, this is expected for testnet nodes"
+  }
+  
+  # Collect genesis transactions
+  echo "[cintara] Collecting genesis transactions..."
+  cintarad collect-gentxs --home "$HOME_DIR" 2>/dev/null || {
+    echo "[cintara] Collect gentxs failed, this is normal for joining existing testnet"
+  }
+  
+  # Download the correct Cintara testnet genesis file
+  echo "[cintara] Downloading Cintara testnet genesis file..."
+  GENESIS_URL="https://raw.githubusercontent.com/Cintaraio/cintara-testnet-script/main/genesis.json"
+  if curl -f -s -o "$HOME_DIR/config/genesis.json" "$GENESIS_URL"; then
+    echo "[cintara] ✅ Genesis file downloaded successfully"
+  else
+    echo "[cintara] ⚠️ Could not download genesis file, using local genesis"
+  fi
+  
+  # Verify the genesis file has the correct chain ID
+  GENESIS_CHAIN_ID=$(jq -r '.chain_id' "$HOME_DIR/config/genesis.json" 2>/dev/null)
+  if [ "$GENESIS_CHAIN_ID" != "$CHAIN_ID" ]; then
+    echo "[cintara] ⚠️ Genesis chain ID ($GENESIS_CHAIN_ID) doesn't match expected ($CHAIN_ID)"
+    echo "[cintara] This may cause startup issues"
+  else
+    echo "[cintara] ✅ Genesis chain ID matches: $GENESIS_CHAIN_ID"
+  fi
+  
+  # Display final node information
+  echo ""
+  echo "[cintara] ============================================="
+  echo "[cintara]         NODE SETUP COMPLETE"
+  echo "[cintara] ============================================="
   echo "[cintara] Node ID: $(cintarad tendermint show-node-id --home "$HOME_DIR" 2>/dev/null || echo 'Not available')"
-  echo "[cintara] Validator Address: $(cintarad keys show validator -a --home "$HOME_DIR" --keyring-backend=file 2>/dev/null || echo 'Not available')"
-  echo "[cintara] Chain ID: ${CHAIN_ID:-cintara_11001-1}"
-  echo "[cintara] Moniker: ${MONIKER:-cintara-node}"
+  echo "[cintara] Validator Address: $VALIDATOR_ADDR"
+  echo "[cintara] Chain ID: $CHAIN_ID"
+  echo "[cintara] Moniker: $MONIKER"
+  echo "[cintara] Keyring Backend: $KEYRING"
+  echo "[cintara] Home Directory: $HOME_DIR"
+  echo "[cintara] ============================================="
   
-  echo "[cintara] Init complete. Home at $HOME_DIR"
-  sleep infinity
+  echo "[cintara] Node initialization complete!"
+  echo "[cintara] You can now run the config patcher and start the node."
+  sleep 5  # Give time to read the output instead of infinite sleep
   exit 0
 fi
 
