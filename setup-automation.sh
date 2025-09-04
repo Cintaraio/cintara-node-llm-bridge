@@ -67,6 +67,12 @@ expect {
     "Enter keyring passphrase:" {
         send "\r"
     }
+    "Enter keyring passphrase (attempt" {
+        send "\r"
+    }
+    "keyring passphrase" {
+        send "\r"
+    }
     timeout {
         puts "Timeout waiting for keyring passphrase prompt"
     }
@@ -74,6 +80,15 @@ expect {
 
 expect {
     "Re-enter keyring passphrase:" {
+        send "\r"
+    }
+    "Re-enter keyring passphrase (attempt" {
+        send "\r"
+    }
+    "re-enter" {
+        send "\r"
+    }
+    "Re-enter" {
         send "\r"
     }
     timeout {
@@ -120,8 +135,9 @@ echo "   /data permissions: $(ls -la /data 2>/dev/null || echo 'directory does n
     export NODE_NAME="${MONIKER}"
     export AUTO_CONFIRM="y"
     
-    # Fallback: Manual setup with echo piping
-    echo -e "${MONIKER}\n\n\ny\n" | timeout 300 ./cintara_ubuntu_node.sh || {
+    # Fallback: Manual setup with more comprehensive input piping
+    # Provides: node name, empty password, empty password confirmation, yes to overwrite
+    echo -e "${MONIKER}\n\n\n\ny\ny\n" | timeout 300 ./cintara_ubuntu_node.sh || {
         echo "❌ Setup failed. Please run setup manually."
         echo "🔍 Final debug info:"
         echo "   /data contents: $(ls -la /data 2>/dev/null || echo 'no /data directory')"
