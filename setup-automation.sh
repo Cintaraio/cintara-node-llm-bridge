@@ -27,6 +27,10 @@ echo "🔧 Running automated Cintara node setup..."
 export DEBIAN_FRONTEND=noninteractive
 export HOME=/home/cintara
 
+# Pre-configure timezone to prevent interactive prompts
+sudo ln -fs /usr/share/zoneinfo/UTC /etc/localtime
+echo 'UTC' | sudo tee /etc/timezone > /dev/null
+
 # Create expect script for automated input
 cat > /tmp/setup_expect.exp << 'EOF'
 #!/usr/bin/expect -f
@@ -60,7 +64,9 @@ EOF
 
 # Install expect if not available
 if ! command -v expect &> /dev/null; then
-    sudo apt-get update && sudo apt-get install -y expect
+    # Pre-configure timezone to prevent prompts
+    sudo ln -fs /usr/share/zoneinfo/UTC /etc/localtime
+    sudo DEBIAN_FRONTEND=noninteractive apt-get update && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y expect
 fi
 
 chmod +x /tmp/setup_expect.exp
