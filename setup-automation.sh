@@ -39,23 +39,50 @@ set moniker [lindex $argv 0]
 
 spawn ./cintara_ubuntu_node.sh
 
-# Handle node name input
-expect "Enter your node name:" {
-    send "$moniker\r"
+# Handle node name input (flexible pattern matching)
+expect {
+    "Enter the Name for the node:" {
+        send "$moniker\r"
+    }
+    "Enter your node name:" {
+        send "$moniker\r"
+    }
+    "node name" {
+        send "$moniker\r"
+    }
+    timeout {
+        puts "Timeout waiting for node name prompt"
+        exit 1
+    }
 }
 
 # Handle keyring password (use empty password for automation)
-expect "Enter keyring passphrase:" {
-    send "\r"
+expect {
+    "Enter keyring passphrase:" {
+        send "\r"
+    }
+    timeout {
+        puts "Timeout waiting for keyring passphrase prompt"
+    }
 }
 
-expect "Re-enter keyring passphrase:" {
-    send "\r"
+expect {
+    "Re-enter keyring passphrase:" {
+        send "\r"
+    }
+    timeout {
+        puts "Timeout waiting for re-enter passphrase prompt"
+    }
 }
 
 # Handle overwrite config prompt
-expect "overwrite" {
-    send "y\r"
+expect {
+    "overwrite" {
+        send "y\r"
+    }
+    timeout {
+        puts "Timeout waiting for overwrite prompt"
+    }
 }
 
 # Wait for completion
