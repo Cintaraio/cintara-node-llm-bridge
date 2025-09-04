@@ -1,21 +1,20 @@
-# Cintara Phase-1 — Validator + LLM + Bridge (Shareable Pack)
+# 🚀 Smart Cintara Node with AI Integration
 
-This package runs a **Cintara testnet validator node** side-by-side with a **CPU LLM (llama.cpp)** and a small **FastAPI bridge** that turns API calls into LLM prompts and returns **JSON**.
+This setup creates a **Smart Cintara Node** that combines blockchain functionality with AI capabilities using Docker Compose. It includes a Cintara testnet validator, CPU-based LLM server (Mistral 7B), and an AI bridge for intelligent blockchain analysis.
 
----
+## 🎯 What You'll Get
 
-## Contents
+- **Cintara Blockchain Node** - Full testnet validator
+- **AI/LLM Integration** - CPU-based Mistral 7B model  
+- **Smart Bridge API** - AI-powered blockchain analysis
+- **Automated Setup** - One-command deployment
 
-- `docker-compose.yml` — Full stack (node + llama + bridge + patcher)
-- `Dockerfile` — Node image with prebuilt `cintarad` baked in
-- `entrypoint.sh` — Init vs. start controller
-- `.env.example` — Copy to `.env` and fill `PUBLIC_IP`, etc.
-- `bridge/` — FastAPI app with JSON grammar-constrained output
-- `scripts/` — Patcher + cleanup scripts
-- `models/` — Put your `.gguf` model here
-- `data/` — Chain home persists here
+## 📋 Prerequisites
 
----
+- Ubuntu 22.04 (or EC2 with Ubuntu)
+- Docker and Docker Compose installed
+- 8GB+ RAM, 50GB+ storage
+- Internet connection for model download
 
 ## 1. EC2 Setup with AWS Nitro Hardening
 
@@ -123,8 +122,6 @@ sudo systemctl enable snap.amazon-ssm-agent.amazon-ssm-agent.service
 sudo systemctl start snap.amazon-ssm-agent.amazon-ssm-agent.service
 ```
 
----
-
 ## 3. Install Docker + Compose
 
 **Run these commands on the EC2 instance after connecting via SSM:**
@@ -162,8 +159,6 @@ docker --version
 docker compose version
 ```
 
----
-
 ## 4. Project Setup
 
 ```bash
@@ -180,8 +175,11 @@ nano .env   # set PUBLIC_IP=<your EC2 public IP/DNS>
 
 **Key environment variables to configure:**
 - `PUBLIC_IP`: Your EC2 instance's public IP or DNS name
+- `CHAIN_ID`: Testnet chain ID (default: cintara_11001-1)
+- `MONIKER`: Your node name (default: cintara-smart-node)
 - `MODEL_FILE`: Must match the GGUF file you download (default: mistral-7b-instruct.Q4_K_M.gguf)
 - `LLM_THREADS`: Number of CPU threads for LLM (default: 8, adjust based on instance size)
+- `CTX_SIZE`: LLM context size (default: 2048)
 
 **Get your EC2 public IP:**
 ```bash
@@ -189,147 +187,129 @@ nano .env   # set PUBLIC_IP=<your EC2 public IP/DNS>
 aws ec2 describe-instances --instance-ids i-1234567890abcdef0 --query 'Reservations[0].Instances[0].PublicIpAddress'
 ```
 
----
+## 5. Quick Start - One-Command Setup
 
-## 5. Download a Model (GGUF)
-
-**Create models directory and download LLM model:**
-
+### Step 1: Download Model
 ```bash
-# Create models directory if it doesn't exist
+# Create models directory and download AI model
 mkdir -p models
 cd models
 
-# Download Mistral 7B model (4-bit quantized, ~4GB download)
-# This may take 5-10 minutes depending on connection speed
-**Important:** Ensure the `MODEL_FILE` in your `.env` file matches the downloaded filename exactly.
+# Download Mistral 7B model (~4GB) - this may take 5-10 minutes
 wget https://huggingface.co/TheBloke/Mistral-7B-Instruct-v0.2-GGUF/resolve/main/mistral-7b-instruct-v0.2.Q4_K_M.gguf -O mistral-7b-instruct.Q4_K_M.gguf
 
 cd ..
 ```
 
-**Model options (choose one):**
-- `Q4_K_M.gguf` - 4-bit quantized, good balance (recommended)
-- `Q5_K_M.gguf` - 5-bit quantized, better quality, larger size
-- `Q8_0.gguf` - 8-bit quantized, best quality, much larger
-
-**Verify model configuration:**
+### Step 2: Configure Environment
 ```bash
-# Check what model file is configured in .env
-grep "MODEL_FILE=" .env
+# Copy environment template
+cp .env.example .env
 
-# Check what model files are actually downloaded
-ls -la models/
-
-# Verify they match - both commands should show the same filename
-echo "Configured: $(grep 'MODEL_FILE=' .env | cut -d'=' -f2)"
-echo "Available: $(ls models/*.gguf 2>/dev/null | xargs -n1 basename)"
+# Edit with your settings
+nano .env
 ```
 
-**Important:** Ensure the `MODEL_FILE` in your `.env` file matches the downloaded filename exactly.
-
-
-
----
-
-## 6. Build, Init, Patch, Run
-
-**Follow these steps in order - each step is required:**
-
+**Required settings in `.env`:**
 ```bash
-# Step 1: Build all Docker images (takes 5-10 minutes)
-docker compose build
+PUBLIC_IP=your.ec2.public.ip
+CHAIN_ID=cintara_11001-1
+MONIKER=your-smart-node-name
+MODEL_FILE=mistral-7b-instruct.Q4_K_M.gguf
+LLM_THREADS=8
+CTX_SIZE=2048
+```
 
-# Step 2: Fix data directory permissions (required for Docker volume mounting)
-sudo mkdir -p ./data
-sudo chown -R $USER:$USER ./data
-sudo chmod -R 755 ./data
-
-# Step 2.1: Fix script permissions (required for config patcher)
-chmod +x scripts/*.sh
-
-# Step 3: Initialize the Cintara node (follows official Cintara testnet process)
-docker compose run --rm -e RUN_MODE=init cintara-node
-
-# IMPORTANT: This will prompt for a keyring password and display your mnemonic
-# The process follows the official Cintara setup and will:
-# 1. Initialize the node configuration
-# 2. Generate validator keys with mnemonic (SAVE THIS!)
-# 3. Create genesis account
-# 4. Generate and collect genesis transactions
-
-# Step 3.1: Verify initialization completed
-ls -la data/.tmp-cintarad/config/
-# You should see config.toml, genesis.json, and other config files
-
-# Step 3.2: Check your wallet information
-docker compose run --rm cintara-node cintarad keys show validator --home /data/.tmp-cintarad --keyring-backend=test
-docker compose run --rm cintara-node cintarad keys show validator -a --home /data/.tmp-cintarad --keyring-backend=test
-
-# Step 3.3: View your mnemonic (if saved)
-cat data/.tmp-cintarad/mnemonic.txt
-
-# Step 4: Patch configuration files (sets network addresses)
-docker compose run --rm config-patcher
-
-# Step 5: Start all services in background
+### Step 3: One-Command Setup
+```bash
+# Initialize and start everything
 docker compose up -d
 ```
 
-**What each step does:**
-1. **Build**: Downloads base images and builds the Cintara node container
-2. **Permissions**: Creates data directory with correct ownership for Docker volumes
-2.1. **Script Permissions**: Ensures shell scripts are executable
-3. **Init**: Creates blockchain configuration, generates wallet and mnemonic phrase
-4. **Patch**: Updates config files with your public IP for P2P networking
-5. **Run**: Starts the validator node, LLM server, and bridge API
+This will:
+1. 🔧 **Setup** the Cintara node automatically
+2. 🧠 **Start** the AI/LLM server
+3. 🌉 **Launch** the smart bridge API
+4. 📊 **Monitor** all services
 
-**Important Security Notes:**
-- **NEVER share your mnemonic phrase** - it provides full access to your wallet
-- **Backup your mnemonic securely** - store it offline in a safe place
-- The mnemonic is saved to `data/.tmp-cintarad/mnemonic.txt` for reference
-
-**Monitor startup progress:**
-```bash
-# Watch all service logs
-docker compose logs -f
-
-# Watch specific service
-docker compose logs -f cintara-node
-docker compose logs -f bridge
-docker compose logs -f llama
-```
-
----
-
-## 7. Verify and Get Node Information
-
-**Check services are running properly:**
+## 6. Verify Smart Node
 
 ```bash
-# Check all container status
+# Check all services are running
 docker compose ps
 
-# 1. Check blockchain node status (should show false when synced)
-curl -s http://localhost:26657/status | jq .sync_info.catching_up
-
-# 2. Check bridge API health (now includes node status)
+# Test the AI-enhanced blockchain API
 curl -s http://localhost:8080/health | jq .
 
-# 3. Get detailed node status
-curl -s http://localhost:8080/node/status | jq .
-
-# 4. Get LLM-powered node diagnostics
+# Get AI-powered node diagnostics
 curl -s -X POST http://localhost:8080/node/diagnose | jq .
 
-# 5. Test transaction analysis
+# Analyze transactions with AI
 curl -s -X POST http://localhost:8080/analyze \
-  -H "content-type: application/json" \
+  -H "Content-Type: application/json" \
   -d '{"transaction":{"hash":"0xabc","amount":"123","from":"addr1","to":"addr2"}}' | jq .
-
-# 6. Analyze node logs for issues
-curl -s http://localhost:8080/node/logs | jq .
 ```
+
+## 🎛️ Available Services
+
+| Service | Port | Description |
+|---------|------|-------------|
+| **Cintara Node** | 26657 | Blockchain RPC API |
+| **P2P Network** | 26656 | Blockchain peer connections |
+| **Smart Bridge** | 8080 | AI-enhanced blockchain API |
+| **LLM Server** | 8000 | Internal AI model server |
+
+## 🧠 Smart Features
+
+The AI integration provides:
+
+- **🔍 Node Diagnostics** - AI analyzes node health and performance
+- **📊 Transaction Analysis** - Smart risk assessment and insights  
+- **📝 Log Analysis** - AI-powered error detection and recommendations
+- **⚡ Real-time Monitoring** - Intelligent blockchain monitoring
+
+## 📱 API Examples
+
+### Health Check
+```bash
+curl http://localhost:8080/health
+```
+
+### Smart Node Diagnostics  
+```bash
+curl -X POST http://localhost:8080/node/diagnose
+```
+
+### Transaction Analysis
+```bash
+curl -X POST http://localhost:8080/analyze \
+  -H "Content-Type: application/json" \
+  -d '{"transaction":{"hash":"tx123","amount":"1000","type":"transfer"}}'
+```
+
+### Log Analysis
+```bash
+curl http://localhost:8080/node/logs
+```
+
+## 🛠️ Management Commands
+
+```bash
+# View logs
+docker compose logs -f
+
+# Restart services  
+docker compose restart
+
+# Stop everything
+docker compose down
+
+# Full reset (removes data)
+docker compose down -v
+sudo rm -rf ./data
+```
+
+## 7. Get Node Information
 
 **Get your node and wallet information:**
 ```bash
@@ -337,7 +317,7 @@ curl -s http://localhost:8080/node/logs | jq .
 docker compose exec cintara-node cintarad tendermint show-node-id --home /data/.tmp-cintarad
 
 # Get your validator address
-docker compose exec cintara-node cintarad keys show validator -a --home /data/.tmp-cintarad --keyring-backend=file
+docker compose exec cintara-node cintarad keys show validator -a --home /data/.tmp-cintarad --keyring-backend=test
 
 # View your mnemonic (KEEP SECURE!)
 cat data/.tmp-cintarad/mnemonic.txt
@@ -345,12 +325,6 @@ cat data/.tmp-cintarad/mnemonic.txt
 # Get validator public key (needed for creating validator)
 docker compose exec cintara-node cintarad tendermint show-validator --home /data/.tmp-cintarad
 ```
-
-**Connect to Cintara Network:**
-- Use your **Node ID** to connect with other peers
-- Use your **Validator Address** to receive tokens for staking
-- Use your **Mnemonic** to restore your wallet in other applications
-- Use your **Validator Public Key** when creating a validator on-chain
 
 **Access from your laptop (using SSM port forwarding):**
 ```bash
@@ -363,104 +337,44 @@ aws ssm start-session --target i-1234567890abcdef0 \
 curl -s http://localhost:26657/status | jq .
 ```
 
-**Expected responses:**
+## 🔑 Important Notes
 
-**Bridge Health Check:**
-```json
-{
-  "status": "ok",
-  "components": {
-    "llm_server": "ok",
-    "blockchain_node": "synced"
-  },
-  "timestamp": "2024-01-01T00:00:00.000000"
-}
-```
+- **Save your mnemonic** - The setup will display your wallet mnemonic phrase
+- **Backup data** - Your node data is stored in `./data/` directory  
+- **Monitor resources** - The AI model uses significant CPU and RAM
+- **Network sync** - Initial blockchain sync may take time
 
-**Node Diagnostics:**
-```json
-{
-  "diagnosis": {
-    "health_score": "good",
-    "issues": [],
-    "recommendations": ["Node is healthy"],
-    "summary": "Node is synced and performing well"
-  },
-  "latency_ms": 1500
-}
-```
+## 🆘 Troubleshooting
 
-**Transaction Analysis:**
-```json
-{
-  "analysis": {
-    "risk_level": "low",
-    "risks": ["No significant risks detected"],
-    "insights": ["Standard transfer transaction"],
-    "recommendation": "Transaction appears safe"
-  },
-  "latency_ms": 800
-}
-```
-
-**Troubleshooting:**
-
-**Common Docker Issues:**
+**Node won't start:**
 ```bash
-# Permission denied errors (like "cannot create directory '/data/.tmp-cintarad'")
-sudo mkdir -p ./data ./models
-sudo chown -R $USER:$USER ./data ./models
-sudo chmod -R 755 ./data ./models
+# Check setup logs
+docker compose logs cintara-setup
 
-# Script permission errors (like "/work/scripts/patch-config.sh: Permission denied")
-chmod +x scripts/*.sh
+# Restart setup
+docker compose restart node-setup
+```
 
-# If init step fails with permission errors, reset data directory:
-sudo rm -rf ./data
-sudo mkdir -p ./data
-sudo chown -R $USER:$USER ./data
-
-# If services fail to start
-docker compose logs cintara-node
-docker compose logs bridge
+**AI not responding:**
+```bash
+# Check LLM server
 docker compose logs llama
 
-# Restart specific service
-docker compose restart bridge
-
-# Check disk space (models are large)
-df -h
-
-# Check Docker daemon is running
-sudo systemctl status docker
-
-# Reset everything and start fresh
-docker compose down -v
-sudo rm -rf ./data
-# Then repeat from Step 2 (permissions)
+# Test model directly
+curl http://localhost:8000/health
 ```
 
-**Port already in use errors:**
+**Need manual setup:**
 ```bash
-# Find what's using the port
-sudo netstat -tlnp | grep :8080
-sudo netstat -tlnp | grep :26657
+# Access node container
+docker compose exec cintara-node bash
 
-# Kill process using the port (replace PID)
-sudo kill <PID>
+# Run manual setup
+cd cintara-testnet-script
+./cintara_ubuntu_node.sh
 ```
 
----
-
-## 8. Cleanup
-
-```bash
-./scripts/cleanup.sh
-```
-
----
-
-## 9. Autostart with systemd (optional)
+## 8. Autostart with systemd (optional)
 
 **Create a systemd service for automatic startup on boot:**
 
@@ -468,7 +382,7 @@ sudo kill <PID>
 # Create systemd service file
 sudo tee /etc/systemd/system/cintara-compose.service >/dev/null <<'EOF'
 [Unit]
-Description=Cintara Phase-1 Compose
+Description=Cintara Smart Node Compose
 After=network-online.target docker.service
 Wants=network-online.target
 
@@ -503,17 +417,27 @@ sudo systemctl start cintara-compose
 sudo journalctl -u cintara-compose -f
 ```
 
-**Note:** Adjust the `WorkingDirectory` path if you cloned the repository to a different location.
+## 9. Cleanup
 
-**Keeping your deployment updated:**
 ```bash
-# Pull latest changes
-cd ~/cintara-node-llm-bridge
-git pull
-
-# Rebuild and restart services if needed
-docker compose build
-docker compose up -d
+./scripts/cleanup.sh
 ```
 
+## 🎉 Success!
+
+You now have a **Smart Cintara Node** with AI capabilities running! 
+
+The node combines blockchain functionality with artificial intelligence to provide intelligent monitoring, analysis, and insights for your Cintara testnet participation.
+
 ---
+
+## Contents
+
+- `docker-compose.yml` — Full smart stack (node + llama + bridge + setup)
+- `Dockerfile.simple` — Node image based on official cintara-testnet-script
+- `setup-automation.sh` — Automated node initialization
+- `.env.example` — Copy to `.env` and configure
+- `bridge/` — FastAPI app with AI-powered analysis
+- `scripts/` — Helper and cleanup scripts
+- `models/` — Put your `.gguf` model here
+- `data/` — Node data persists here
