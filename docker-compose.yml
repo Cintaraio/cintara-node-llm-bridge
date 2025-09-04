@@ -1,38 +1,7 @@
 services:
-  # Smart Cintara Blockchain Node (based on official working guide)
-  cintara-node:
-    build:
-      context: .
-      dockerfile: Dockerfile.simple
-    image: cintara-node-smart:local
-    container_name: cintara-node-smart
-    restart: unless-stopped
-    environment:
-      - CHAIN_ID=${CHAIN_ID:-cintara_11001-1}
-      - MONIKER=${MONIKER:-cintara-smart-node}
-    volumes:
-      - ./data:/data
-      - ./scripts:/scripts:ro
-    ports:
-      - "26656:26656"  # P2P port
-      - "26657:26657"  # RPC port
-      - "1317:1317"    # API port
-    command: ["/bin/bash", "-c", "cd /home/cintara/cintara-testnet-script && /usr/local/bin/cintarad start --home /data/.tmp-cintarad --keyring-backend test"]
-    healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:26657/status > /dev/null || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
-    depends_on:
-      node-setup:
-        condition: service_completed_successfully
-    networks:
-      - cintara-network
-
   # LLM Server (CPU-based with llama.cpp)
   llama:
-    image: ${LLAMA_REPO:-ghcr.io/ggerganov/llama.cpp}@${LLAMA_DIGEST:-sha256:76aaae6aea58f7ab0d83d3b5b1b83b27b75e6b8db59edada1e5ba57f6acfee42}
+    image: ${LLAMA_REPO:-ghcr.io/ggerganov/llama.cpp:server}@${LLAMA_DIGEST:-sha256:42d562e394e22fc1b05d6f0ee9179b276b80a115217c8d668dc8c2fc5b1302ac}
     container_name: cintara-llm
     restart: unless-stopped
     command: [
@@ -52,30 +21,26 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-    networks:
-      - cintara-network
+    ports:
+      - "8000:8000"  # LLM API port
     deploy:
       resources:
         limits:
           cpus: '8.0'
           memory: 8G
 
-  # AI Bridge - Makes the Cintara Node Smart
+  # AI Bridge - Connects to host Cintara node
   bridge:
     build: ./bridge
     container_name: cintara-ai-bridge
     restart: unless-stopped
     environment:
       - LLAMA_SERVER_URL=http://llama:8000
-      - CINTARA_NODE_URL=http://cintara-node:26657
-      - LOG_PATH=/shared/logs
+      - CINTARA_NODE_URL=http://host.docker.internal:26657  # Connect to host node
+      - LOG_PATH=/app/logs
       - AI_FEATURES_ENABLED=true
-    volumes:
-      - ./data:/shared:ro
     depends_on:
       llama:
-        condition: service_healthy
-      cintara-node:
         condition: service_healthy
     ports:
       - "8080:8080"  # AI Bridge API
@@ -84,27 +49,3 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-    networks:
-      - cintara-network
-
-  # Node Setup Helper (runs once to initialize)
-  node-setup:
-    build:
-      context: .
-      dockerfile: Dockerfile.simple
-    container_name: cintara-setup
-    volumes:
-      - ./data:/data
-      - ./setup-automation.sh:/setup-automation.sh:ro
-    environment:
-      - CHAIN_ID=${CHAIN_ID:-cintara_11001-1}
-      - MONIKER=${MONIKER:-cintara-smart-node}
-      - AUTO_SETUP=${AUTO_SETUP:-true}
-      - KEYRING_PASSWORD=${KEYRING_PASSWORD}
-    command: ["/bin/bash", "/setup-automation.sh"]
-    networks:
-      - cintara-network
-
-networks:
-  cintara-network:
-    driver: bridge
