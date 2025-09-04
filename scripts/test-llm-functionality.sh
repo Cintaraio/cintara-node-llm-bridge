@@ -1,7 +1,7 @@
 #!/bin/bash
 
-echo "🧪 Testing Smart Cintara Node LLM Functionality"
-echo "=============================================="
+echo "🧪 Testing Smart Blockchain Node LLM Functionality"
+echo "================================================="
 echo ""
 
 # Colors for output
@@ -89,7 +89,7 @@ echo "📈 Total Tests: $TOTAL_TESTS"
 if [ $TESTS_FAILED -eq 0 ]; then
     echo -e "${GREEN}🎉 All LLM functionality tests passed!${NC}"
     echo ""
-    echo "🚀 Your Smart Cintara Node is fully operational with AI capabilities!"
+    echo "🚀 Your Smart Blockchain Node is fully operational with AI capabilities!"
     echo ""
     echo "🔗 Next steps:"
     echo "- Access AI Bridge API: http://localhost:8080"
@@ -120,4 +120,4 @@ echo ""
 echo "# Interactive AI chat test"
 echo "curl -X POST http://localhost:8080/chat \\"
 echo "  -H 'Content-Type: application/json' \\"
-echo "  -d '{\"message\":\"What can you tell me about this Cintara node?\"}'"
+echo "  -d '{\"message\":\"What can you tell me about this blockchain node?\"}'"

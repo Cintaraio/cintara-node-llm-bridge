@@ -1,48 +1,423 @@
-# 🚀 Smart Cintara Node with AI Integration
+# 🚀 Smart Blockchain Node with AI Integration
 
-A hybrid setup that combines a Cintara blockchain node with AI-powered analysis capabilities using LLM integration.
+A hybrid blockchain node setup that combines a blockchain validator with AI-powered analysis capabilities using LLM integration.
 
-## 🏗️ Architecture
+## 🏗️ Architecture Overview
 
 ```
 ┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│   Cintara Node  │    │   LLM Server     │    │   AI Bridge     │
-│   (Manual)      │◄───┤   (Docker)       │◄───┤   (Docker)      │
+│  Blockchain     │    │   LLM Server     │    │   AI Bridge     │
+│  Node (Manual)  │◄───┤   (Docker)       │◄───┤   (Docker)      │
 │   Port: 26657   │    │   Port: 8000     │    │   Port: 8080    │
 └─────────────────┘    └──────────────────┘    └─────────────────┘
 ```
 
-## 🎯 What You'll Get
+## 🎯 What You Get
 
-- **Cintara Blockchain Node** - Native testnet validator for maximum reliability
+- **Blockchain Node** - Native testnet validator for maximum reliability
 - **AI/LLM Integration** - CPU-based Mistral 7B model for intelligent analysis
 - **Smart Bridge API** - AI-powered blockchain monitoring and diagnostics
 - **Hybrid Architecture** - Best of both manual setup and containerization
 
 ## 📋 Prerequisites
 
-- **Ubuntu 22.04** (EC2 instance recommended)
+- **AWS EC2 Instance** with Ubuntu 22.04 (recommended) or local macOS
+- **Instance Type**: t3.large or larger (8GB+ RAM, 50GB+ storage)
 - **Docker and Docker Compose** installed
-- **8GB+ RAM, 50GB+ storage**
-- **Internet connection** for model download
+- **Internet connection** for model download (~4GB)
+- **AWS CLI** configured (for EC2 setup)
 
 ---
 
-## 🚀 Quick Start
+## 🚀 Complete Setup Guide
 
-### Step 1: Setup Cintara Node (Manual)
+### Step 1: AWS EC2 Instance Setup (Recommended)
+
+#### 1.1 Launch EC2 Instance with Security Hardening
+
+**Create EC2 instance using AWS CLI:**
+```bash
+# Set your variables
+REGION="us-east-1"
+KEY_PAIR_NAME="your-key-pair"
+INSTANCE_NAME="smart-blockchain-node"
+
+# Create security group with minimal required ports
+aws ec2 create-security-group \
+  --group-name blockchain-node-sg \
+  --description "Security group for Smart Blockchain Node" \
+  --region $REGION
+
+# Get security group ID
+SG_ID=$(aws ec2 describe-security-groups \
+  --filters "Name=group-name,Values=blockchain-node-sg" \
+  --query 'SecurityGroups[0].GroupId' \
+  --output text \
+  --region $REGION)
+
+# Configure security group rules (restrictive by design)
+# Allow P2P blockchain traffic (26656) from anywhere
+aws ec2 authorize-security-group-ingress \
+  --group-id $SG_ID \
+  --protocol tcp \
+  --port 26656 \
+  --cidr 0.0.0.0/0 \
+  --region $REGION
+
+# Allow RPC access (26657) only from your IP for security
+YOUR_IP=$(curl -s ifconfig.me)
+aws ec2 authorize-security-group-ingress \
+  --group-id $SG_ID \
+  --protocol tcp \
+  --port 26657 \
+  --cidr $YOUR_IP/32 \
+  --region $REGION
+
+# Allow AI Bridge (8080) only from your IP
+aws ec2 authorize-security-group-ingress \
+  --group-id $SG_ID \
+  --protocol tcp \
+  --port 8080 \
+  --cidr $YOUR_IP/32 \
+  --region $REGION
+
+# LLM server (8000) - internal only, no external access needed
+```
+
+#### 1.2 Launch Instance with Nitro Hardening
+
+```bash
+# Launch instance with security hardening
+aws ec2 run-instances \
+  --image-id ami-0c02fb55956c7d316 \
+  --instance-type t3.large \
+  --key-name $KEY_PAIR_NAME \
+  --security-group-ids $SG_ID \
+  --block-device-mappings '[{
+    "DeviceName": "/dev/sda1",
+    "Ebs": {
+      "VolumeSize": 50,
+      "VolumeType": "gp3",
+      "Encrypted": true,
+      "DeleteOnTermination": true
+    }
+  }]' \
+  --metadata-options '{
+    "HttpEndpoint": "enabled",
+    "HttpTokens": "required",
+    "HttpPutResponseHopLimit": 1,
+    "InstanceMetadataServiceOptions": {
+      "HttpEndpoint": "enabled",
+      "HttpTokens": "required"
+    }
+  }' \
+  --monitoring Enabled=true \
+  --tag-specifications "ResourceType=instance,Tags=[
+    {Key=Name,Value=$INSTANCE_NAME},
+    {Key=Environment,Value=blockchain-node},
+    {Key=Security,Value=nitro-hardened}
+  ]" \
+  --region $REGION
+```
+
+#### 1.3 Configure IAM Role for SSM Access
+
+**Create IAM role for SSM Session Manager:**
+```bash
+# Create trust policy for EC2
+cat > trust-policy.json << 'EOF'
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "Service": "ec2.amazonaws.com"
+      },
+      "Action": "sts:AssumeRole"
+    }
+  ]
+}
+EOF
+
+# Create IAM role
+aws iam create-role \
+  --role-name BlockchainNodeSSMRole \
+  --assume-role-policy-document file://trust-policy.json
+
+# Attach SSM managed policy
+aws iam attach-role-policy \
+  --role-name BlockchainNodeSSMRole \
+  --policy-arn arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+
+# Create instance profile
+aws iam create-instance-profile \
+  --instance-profile-name BlockchainNodeProfile
+
+# Add role to instance profile
+aws iam add-role-to-instance-profile \
+  --instance-profile-name BlockchainNodeProfile \
+  --role-name BlockchainNodeSSMRole
+
+# Attach instance profile to your EC2 instance
+INSTANCE_ID=$(aws ec2 describe-instances \
+  --filters "Name=tag:Name,Values=$INSTANCE_NAME" \
+  --query 'Reservations[0].Instances[0].InstanceId' \
+  --output text \
+  --region $REGION)
+
+aws ec2 associate-iam-instance-profile \
+  --instance-id $INSTANCE_ID \
+  --iam-instance-profile Name=BlockchainNodeProfile \
+  --region $REGION
+```
+
+#### 1.4 Connect via SSM Session Manager
+
+**Connect securely without SSH keys:**
+```bash
+# Install AWS CLI and Session Manager plugin (if not already installed)
+# For macOS:
+brew install awscli session-manager-plugin
+
+# For Ubuntu:
+curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+unzip awscliv2.zip
+sudo ./aws/install
+
+# Install Session Manager plugin
+curl "https://s3.amazonaws.com/session-manager-downloads/plugin/latest/ubuntu_64bit/session-manager-plugin.deb" -o "session-manager-plugin.deb"
+sudo dpkg -i session-manager-plugin.deb
+
+# Connect to your instance
+aws ssm start-session --target $INSTANCE_ID --region $REGION
+```
+
+#### 1.5 Configure VPC Flow Logs (Additional Security)
+
+```bash
+# Create VPC Flow Logs for network monitoring
+VPC_ID=$(aws ec2 describe-instances \
+  --instance-ids $INSTANCE_ID \
+  --query 'Reservations[0].Instances[0].VpcId' \
+  --output text \
+  --region $REGION)
+
+# Create CloudWatch Log Group
+aws logs create-log-group \
+  --log-group-name /aws/vpc/flowlogs \
+  --region $REGION
+
+# Create Flow Logs
+aws ec2 create-flow-logs \
+  --resource-type VPC \
+  --resource-ids $VPC_ID \
+  --traffic-type ALL \
+  --log-destination-type cloud-watch-logs \
+  --log-group-name /aws/vpc/flowlogs \
+  --deliver-logs-permission-arn arn:aws:iam::$(aws sts get-caller-identity --query Account --output text):role/flowlogsRole \
+  --region $REGION
+```
+
+### Step 2: Initial Server Hardening
+
+**Once connected via SSM, harden the server:**
+```bash
+# Update system
+sudo apt update && sudo apt upgrade -y
+
+# Configure automatic security updates
+sudo apt install -y unattended-upgrades
+sudo dpkg-reconfigure -plow unattended-upgrades
+
+# Install security tools
+sudo apt install -y fail2ban ufw htop curl jq
+
+# Configure firewall (UFW)
+sudo ufw default deny incoming
+sudo ufw default allow outgoing
+sudo ufw allow 26656/tcp comment 'Blockchain P2P'
+sudo ufw allow from $YOUR_IP to any port 26657 comment 'RPC access'
+sudo ufw allow from $YOUR_IP to any port 8080 comment 'AI Bridge'
+sudo ufw --force enable
+
+# Configure fail2ban
+sudo systemctl enable fail2ban
+sudo systemctl start fail2ban
+
+# Secure shared memory
+echo 'tmpfs /run/shm tmpfs defaults,noexec,nosuid 0 0' | sudo tee -a /etc/fstab
+
+# Disable unused network protocols
+echo 'install dccp /bin/true' | sudo tee -a /etc/modprobe.d/blacklist-rare-network.conf
+echo 'install sctp /bin/true' | sudo tee -a /etc/modprobe.d/blacklist-rare-network.conf
+echo 'install rds /bin/true' | sudo tee -a /etc/modprobe.d/blacklist-rare-network.conf
+echo 'install tipc /bin/true' | sudo tee -a /etc/modprobe.d/blacklist-rare-network.conf
+
+# Configure kernel parameters for security
+cat | sudo tee -a /etc/sysctl.conf << 'EOF'
+# Network security
+net.ipv4.conf.default.rp_filter=1
+net.ipv4.conf.all.rp_filter=1
+net.ipv4.conf.all.accept_redirects=0
+net.ipv6.conf.all.accept_redirects=0
+net.ipv4.conf.all.send_redirects=0
+net.ipv4.conf.all.accept_source_route=0
+net.ipv6.conf.all.accept_source_route=0
+net.ipv4.conf.all.log_martians=1
+net.ipv4.icmp_ignore_bogus_error_responses=1
+net.ipv4.icmp_echo_ignore_broadcasts=1
+net.ipv4.conf.all.secure_redirects=0
+net.ipv4.conf.default.secure_redirects=0
+EOF
+
+sudo sysctl -p
+
+# Enable AWS CloudWatch monitoring
+sudo apt install -y collectd
+wget https://s3.amazonaws.com/amazoncloudwatch-agent/ubuntu/amd64/latest/amazon-cloudwatch-agent.deb
+sudo dpkg -i amazon-cloudwatch-agent.deb
+
+# Configure CloudWatch Agent
+cat | sudo tee /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json << 'EOF'
+{
+  "metrics": {
+    "namespace": "BlockchainNode/System",
+    "metrics_collected": {
+      "cpu": {
+        "measurement": ["cpu_usage_idle", "cpu_usage_iowait", "cpu_usage_user", "cpu_usage_system"],
+        "metrics_collection_interval": 60
+      },
+      "disk": {
+        "measurement": ["used_percent"],
+        "metrics_collection_interval": 60,
+        "resources": ["*"]
+      },
+      "diskio": {
+        "measurement": ["io_time"],
+        "metrics_collection_interval": 60,
+        "resources": ["*"]
+      },
+      "mem": {
+        "measurement": ["mem_used_percent"],
+        "metrics_collection_interval": 60
+      },
+      "netstat": {
+        "measurement": ["tcp_established", "tcp_time_wait"],
+        "metrics_collection_interval": 60
+      },
+      "swap": {
+        "measurement": ["swap_used_percent"],
+        "metrics_collection_interval": 60
+      }
+    }
+  },
+  "logs": {
+    "logs_collected": {
+      "files": {
+        "collect_list": [
+          {
+            "file_path": "/var/log/auth.log",
+            "log_group_name": "/aws/ec2/blockchain-node/auth",
+            "log_stream_name": "{instance_id}"
+          },
+          {
+            "file_path": "/var/log/syslog",
+            "log_group_name": "/aws/ec2/blockchain-node/syslog",
+            "log_stream_name": "{instance_id}"
+          }
+        ]
+      }
+    }
+  }
+}
+EOF
+
+# Start CloudWatch agent
+sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl \
+  -a fetch-config \
+  -m ec2 \
+  -s \
+  -c file:/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json
+
+# Enable Nitro Enclave (if supported by instance type)
+# Note: Requires specific instance types like m5n, c5n, r5n, etc.
+if grep -q "nitro" /sys/devices/virtual/dmi/id/product_name 2>/dev/null; then
+    echo "Nitro system detected - enabling additional hardening"
+    
+    # Install AWS Nitro Enclaves CLI (if needed for enhanced security)
+    sudo amazon-linux-extras install aws-nitro-enclaves-cli -y 2>/dev/null || true
+    
+    # Configure Nitro Enclaves allocator service
+    cat | sudo tee /etc/nitro_enclaves/allocator.yaml << 'EOF' 2>/dev/null || true
+---
+# Allocator configuration
+memory_mib: 512
+cpu_count: 2
+EOF
+    
+    sudo systemctl enable --now nitro-enclaves-allocator.service 2>/dev/null || true
+fi
+
+# Configure AWS Inspector for vulnerability assessments
+aws inspector2 enable --resource-types EC2 --region $REGION 2>/dev/null || echo "Inspector v2 setup requires additional permissions"
+
+# Install and configure AWS Systems Manager Patch Manager
+sudo snap install amazon-ssm-agent --classic 2>/dev/null || true
+sudo systemctl enable snap.amazon-ssm-agent.amazon-ssm-agent.service 2>/dev/null || true
+sudo systemctl start snap.amazon-ssm-agent.amazon-ssm-agent.service 2>/dev/null || true
+```
+
+### Step 3: Install Dependencies
+
+```bash
+# Install Docker
+curl -fsSL https://get.docker.com -o get-docker.sh
+sudo sh get-docker.sh
+sudo usermod -aG docker $USER
+
+# Install Docker Compose
+sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+sudo chmod +x /usr/local/bin/docker-compose
+
+# Verify installation
+docker --version
+docker-compose --version
+
+# Note: You may need to log out and back in for group changes to take effect
+```
+
+**macOS:**
+```bash
+# Install Docker Desktop
+brew install --cask docker
+```
+
+### Step 4: Clone Repository and Setup
+
+**Clone the repository on your EC2 instance:**
+```bash
+# Clone repository
+git clone <repository-url> smart-blockchain-node
+cd smart-blockchain-node
+
+# Make scripts executable
+chmod +x scripts/*.sh
+```
+
+### Step 5: Setup Blockchain Node
 
 ```bash
 # Run automated setup script
-./scripts/setup-cintara-node.sh
+./scripts/setup-blockchain-node.sh
 ```
 
-**Follow the prompts:**
+**During setup:**
 - Enter your node name (e.g., "my-smart-node")
 - Set a secure keyring password (8+ characters)
 - **Save the mnemonic phrase securely!**
 
-### Step 2: Configure Environment
+### Step 6: Configure Environment
 
 ```bash
 # Copy and edit environment file
@@ -57,28 +432,24 @@ MODEL_FILE=mistral-7b-instruct.Q4_K_M.gguf
 LLM_THREADS=8
 CTX_SIZE=2048
 
-# Security: Generate a secure keyring password
-KEYRING_PASSWORD=your-secure-password-here
+# Node connection
+NODE_URL=http://localhost:26657
 ```
 
-**🔐 Generate a secure password:**
-```bash
-./scripts/generate-secure-password.sh
-```
-
-### Step 3: Download AI Model
+### Step 7: Download AI Model
 
 ```bash
 mkdir -p models
 cd models
 
-# Download Mistral 7B model (~4GB) - this may take 5-10 minutes
+# Download Mistral 7B model (~4GB) - may take 5-10 minutes
+echo "📥 Downloading AI model (this may take several minutes)..."
 wget https://huggingface.co/TheBloke/Mistral-7B-Instruct-v0.2-GGUF/resolve/main/mistral-7b-instruct-v0.2.Q4_K_M.gguf -O mistral-7b-instruct.Q4_K_M.gguf
 
 cd ..
 ```
 
-### Step 4: Start Smart Node System
+### Step 8: Start AI Services
 
 ```bash
 # Use unified startup script (recommended)
@@ -92,26 +463,114 @@ docker compose up -d
 
 ## ✅ Verification & Testing
 
-### Health Checks
+### Quick Health Check
+
 ```bash
-# Test all components
-curl http://localhost:26657/status     # Cintara node
-curl http://localhost:8000/health      # LLM server  
-curl http://localhost:8080/health      # AI bridge
+# Run automated verification suite
+./scripts/verify-smart-node.sh
 ```
 
-### AI Features
+### Manual Health Checks
+
 ```bash
-# Get AI-powered node diagnostics
-curl -X POST http://localhost:8080/node/diagnose | jq .
+# Test blockchain node
+curl http://localhost:26657/status | jq .sync_info
 
-# Analyze transactions with AI
-curl -X POST http://localhost:8080/analyze \
+# Test LLM server  
+curl http://localhost:8000/health
+
+# Test AI bridge
+curl http://localhost:8080/health
+```
+
+---
+
+## 🧠 AI-Powered Features
+
+### 1. Intelligent Node Diagnostics
+
+Get AI-powered analysis of your node's health:
+
+```bash
+curl -s -X POST http://localhost:8080/node/diagnose | jq .
+```
+
+**Example response:**
+```json
+{
+  "diagnosis": {
+    "health_score": "good",
+    "issues": [],
+    "recommendations": ["Monitor peer diversity"],
+    "summary": "Node is healthy and fully synchronized"
+  },
+  "timestamp": "2024-09-04T14:30:00Z"
+}
+```
+
+### 2. Smart Transaction Analysis
+
+Analyze transactions with AI insights:
+
+```bash
+curl -s -X POST http://localhost:8080/analyze \
   -H "Content-Type: application/json" \
-  -d '{"transaction":{"hash":"0xabc","amount":"123","from":"addr1","to":"addr2"}}' | jq .
+  -d '{
+    "transaction": {
+      "hash": "0xabc123...",
+      "amount": "1000",
+      "from": "addr1...",
+      "to": "addr2..."
+    }
+  }' | jq .
+```
 
-# Get intelligent log analysis
-curl http://localhost:8080/node/logs | jq .
+### 3. Intelligent Log Analysis
+
+Get AI-powered analysis of blockchain node logs:
+
+```bash
+# Get recent logs with AI analysis
+curl -s http://localhost:8080/node/logs | jq .
+
+# Analyze specific patterns
+curl -s -X POST http://localhost:8080/node/logs/analyze \
+  -H "Content-Type: application/json" \
+  -d '{"lines": 100, "level": "error"}' | jq .
+```
+
+### 4. Interactive AI Chat
+
+Ask the AI about your node:
+
+```bash
+curl -s -X POST http://localhost:8080/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message": "What is the current status of my blockchain node?"}' | jq .
+```
+
+**Example questions:**
+- "What is the current status of my node?"
+- "Are there any issues I should be concerned about?"
+- "How is my node's performance?"
+- "What maintenance should I perform?"
+
+### 5. Peer Connectivity Analysis
+
+Analyze network connectivity with AI:
+
+```bash
+curl -s http://localhost:8080/node/peers | jq .
+```
+
+### 6. Block Transaction Analysis
+
+Analyze transactions in specific blocks:
+
+```bash
+# Analyze latest block transactions
+LATEST_BLOCK=$(curl -s http://localhost:26657/status | jq -r '.result.sync_info.latest_block_height')
+curl -s http://localhost:8080/node/transactions/$LATEST_BLOCK | jq .
 ```
 
 ---
@@ -120,23 +579,131 @@ curl http://localhost:8080/node/logs | jq .
 
 | Service | Port | Description |
 |---------|------|-------------|
-| **Cintara Node** | 26657 | Blockchain RPC API |
+| **Blockchain Node** | 26657 | Blockchain RPC API |
 | **P2P Network** | 26656 | Blockchain peer connections |
 | **Smart Bridge** | 8080 | AI-enhanced blockchain API |
 | **LLM Server** | 8000 | Internal AI model server |
 
-## 🧠 Smart Features
-
-The AI integration provides:
-
-- **🔍 Node Diagnostics** - AI analyzes node health and performance
-- **📊 Transaction Analysis** - Smart risk assessment and insights
-- **📝 Log Analysis** - AI-powered error detection and recommendations
-- **⚡ Real-time Monitoring** - Intelligent blockchain monitoring
+---
 
 ---
 
-## 🛠️ Management
+## 🔐 AWS Security Monitoring & Maintenance
+
+### Security Monitoring
+
+**Monitor your EC2 instance security:**
+```bash
+# Check CloudWatch metrics
+aws cloudwatch get-metric-statistics \
+  --namespace BlockchainNode/System \
+  --metric-name cpu_usage_user \
+  --dimensions Name=InstanceId,Value=$INSTANCE_ID \
+  --start-time $(date -u -d '1 hour ago' +%Y-%m-%dT%H:%M:%S) \
+  --end-time $(date -u +%Y-%m-%dT%H:%M:%S) \
+  --period 300 \
+  --statistics Average \
+  --region $REGION
+
+# Check security group compliance
+aws ec2 describe-security-groups \
+  --group-ids $SG_ID \
+  --region $REGION
+
+# Review VPC Flow Logs
+aws logs filter-log-events \
+  --log-group-name /aws/vpc/flowlogs \
+  --start-time $(date -d '1 hour ago' +%s)000 \
+  --region $REGION
+
+# Check for unauthorized access attempts
+aws ssm send-command \
+  --instance-ids $INSTANCE_ID \
+  --document-name "AWS-RunShellScript" \
+  --parameters 'commands=["grep \"Failed password\" /var/log/auth.log | tail -10"]' \
+  --region $REGION
+```
+
+### Cost Optimization
+
+**Monitor and optimize costs:**
+```bash
+# Enable detailed monitoring (additional cost but better insights)
+aws ec2 monitor-instances --instance-ids $INSTANCE_ID --region $REGION
+
+# Set up billing alerts
+aws cloudwatch put-metric-alarm \
+  --alarm-name "BlockchainNode-HighCosts" \
+  --alarm-description "Alert when blockchain node costs are high" \
+  --metric-name EstimatedCharges \
+  --namespace AWS/Billing \
+  --statistic Maximum \
+  --period 86400 \
+  --threshold 100.0 \
+  --comparison-operator GreaterThanThreshold \
+  --dimensions Name=Currency,Value=USD \
+  --region us-east-1
+
+# Schedule instance stop/start (optional - for non-24/7 operations)
+# Create Lambda function to stop instance during off-hours
+cat > stop-instance-policy.json << 'EOF'
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "ec2:StopInstances",
+        "ec2:StartInstances",
+        "ec2:DescribeInstances"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "logs:CreateLogGroup",
+        "logs:CreateLogStream",
+        "logs:PutLogEvents"
+      ],
+      "Resource": "*"
+    }
+  ]
+}
+EOF
+```
+
+### Backup and Recovery
+
+**Setup automated backups:**
+```bash
+# Create AMI snapshots
+aws ec2 create-image \
+  --instance-id $INSTANCE_ID \
+  --name "blockchain-node-backup-$(date +%Y%m%d)" \
+  --description "Automated backup of blockchain node" \
+  --region $REGION
+
+# Setup automated daily snapshots via Lambda
+aws events put-rule \
+  --name "daily-blockchain-backup" \
+  --schedule-expression "cron(0 2 * * ? *)" \
+  --region $REGION
+
+# Backup blockchain data to S3
+aws s3 mb s3://your-blockchain-backups-$(date +%s) --region $REGION
+
+# Sync blockchain data directory
+aws ssm send-command \
+  --instance-ids $INSTANCE_ID \
+  --document-name "AWS-RunShellScript" \
+  --parameters 'commands=["sudo aws s3 sync ~/.tmp-blockchain-data s3://your-blockchain-backups-bucket/data/"]' \
+  --region $REGION
+```
+
+---
+
+## 🛠️ Management Commands
 
 ### View Logs
 ```bash
@@ -146,58 +713,175 @@ docker compose logs -f
 # Specific service
 docker compose logs -f llama
 docker compose logs -f bridge
+
+# Blockchain node logs (if running as service)
+journalctl -u blockchain-node -f
 ```
 
 ### Restart Services
 ```bash
-# Restart Docker services only (keeps Cintara node running)
+# Restart Docker services only
 docker compose restart
 
 # Stop Docker services
 docker compose down
+
+# Full restart including node
+./scripts/start-smart-node.sh
 ```
 
-### Cintara Node Management
-```bash
-# Check if running
-ps aux | grep cintarad
+### Health Monitoring
 
-# Restart if needed (adjust path as needed)
-cd ~/cintara-node/cintara-testnet-script
-# Follow the original script's restart instructions
+**Local monitoring script:**
+```bash
+# Create comprehensive monitoring script
+cat > monitor.sh << 'EOF'
+#!/bin/bash
+echo "🔍 Smart Blockchain Node Health Check"
+echo "===================================="
+echo "Timestamp: $(date)"
+echo ""
+
+# System Resources
+echo "📊 System Resources:"
+echo "- CPU Usage: $(top -bn1 | grep "Cpu(s)" | awk '{print $2}' | cut -d'%' -f1)%"
+echo "- Memory Usage: $(free | grep Mem | awk '{printf("%.1f%%"), $3/$2 * 100.0}')"
+echo "- Disk Usage: $(df -h / | awk 'NR==2{printf "%s", $5}')"
+echo ""
+
+# Blockchain Node
+echo "🔗 Blockchain Node Status:"
+if curl -s http://localhost:26657/status > /dev/null; then
+    echo "✅ Blockchain Node: Healthy"
+    SYNC=$(curl -s http://localhost:26657/status | jq -r .result.sync_info.catching_up)
+    BLOCK_HEIGHT=$(curl -s http://localhost:26657/status | jq -r .result.sync_info.latest_block_height)
+    PEERS=$(curl -s http://localhost:26657/net_info | jq -r .result.n_peers)
+    echo "   Sync Status: $([ "$SYNC" = "false" ] && echo "✅ Synced" || echo "⏳ Syncing")"
+    echo "   Block Height: $BLOCK_HEIGHT"
+    echo "   Peer Count: $PEERS"
+else
+    echo "❌ Blockchain Node: Down"
+fi
+echo ""
+
+# Docker Services
+echo "🐳 Docker Services:"
+if command -v docker > /dev/null; then
+    docker compose ps --format "table {{.Name}}\t{{.Status}}\t{{.Ports}}"
+else
+    echo "Docker not available"
+fi
+echo ""
+
+# LLM Server
+echo "🤖 LLM Server:"
+if curl -s http://localhost:8000/health > /dev/null; then
+    echo "✅ LLM Server: Healthy"
+    MODEL_INFO=$(curl -s http://localhost:8000/v1/models | jq -r '.data[0].id // "Unknown"' 2>/dev/null)
+    echo "   Model: $MODEL_INFO"
+else
+    echo "❌ LLM Server: Down"
+fi
+echo ""
+
+# AI Bridge
+echo "🌉 AI Bridge:"
+if curl -s http://localhost:8080/health > /dev/null; then
+    echo "✅ AI Bridge: Healthy"
+    # Test AI functionality
+    AI_RESPONSE=$(curl -s -X POST http://localhost:8080/chat \
+      -H "Content-Type: application/json" \
+      -d '{"message":"ping"}' | jq -r '.response // "No response"' 2>/dev/null)
+    echo "   AI Test: ${AI_RESPONSE:0:50}..."
+else
+    echo "❌ AI Bridge: Down"
+fi
+echo ""
+
+# Security Status
+echo "🔐 Security Status:"
+echo "- Firewall: $(sudo ufw status | grep -q "Status: active" && echo "✅ Active" || echo "❌ Inactive")"
+echo "- Fail2ban: $(sudo systemctl is-active fail2ban 2>/dev/null || echo "❌ Not running")"
+if command -v aws > /dev/null; then
+    echo "- SSM Agent: $(sudo systemctl is-active snap.amazon-ssm-agent.amazon-ssm-agent.service 2>/dev/null || echo "❌ Not running")"
+fi
+EOF
+
+chmod +x monitor.sh
+./monitor.sh
+```
+
+**AWS CloudWatch monitoring:**
+```bash
+# Create CloudWatch dashboard
+aws cloudwatch put-dashboard \
+  --dashboard-name "BlockchainNodeDashboard" \
+  --dashboard-body '{
+    "widgets": [
+      {
+        "type": "metric",
+        "properties": {
+          "metrics": [
+            ["BlockchainNode/System", "cpu_usage_user", "InstanceId", "'$INSTANCE_ID'"],
+            [".", "mem_used_percent", ".", "."],
+            [".", "disk_used_percent", ".", "."]
+          ],
+          "period": 300,
+          "stat": "Average",
+          "region": "'$REGION'",
+          "title": "System Resources"
+        }
+      }
+    ]
+  }' \
+  --region $REGION
+
+# Create custom metric for blockchain sync status
+aws cloudwatch put-metric-data \
+  --namespace "BlockchainNode/Custom" \
+  --metric-data MetricName=SyncStatus,Value=1,Unit=None \
+  --region $REGION
 ```
 
 ---
 
 ## 🔧 Troubleshooting
 
-### Cintara Node Issues
+### Common Issues
+
+#### Issue: "Blockchain node not responding"
 ```bash
-# Check if node is responding
-curl -s http://localhost:26657/status
+# Check if node process is running
+ps aux | grep blockchain-node
 
-# If not responding, check if process is running
-ps aux | grep cintarad
+# If not running, restart
+cd ~/blockchain-node/testnet-script
+# Follow the restart instructions from setup
 
-# Check node logs (location varies based on setup)
-journalctl -u cintarad -f  # if running as service
+# Check node logs
+journalctl -u blockchain-node -n 50
 ```
 
-### LLM Server Issues
+#### Issue: "LLM server not starting"
 ```bash
 # Check Docker logs
 docker compose logs llama
 
-# Restart LLM only  
-docker compose restart llama
+# Common solutions:
+# 1. Model file missing - re-download model
+# 2. Insufficient memory - check: free -h
+# 3. Port conflict - check: sudo netstat -tlnp | grep :8000
 
-# Check if model file exists
-ls -la models/
+# Restart LLM service
+docker compose restart llama
 ```
 
-### Bridge Connection Issues
+#### Issue: "AI Bridge connection errors"
 ```bash
-# Test bridge connectivity to both services
+# Check bridge logs
+docker compose logs bridge
+
+# Test connectivity
 docker compose exec bridge curl -s http://llama:8000/health
 docker compose exec bridge curl -s http://host.docker.internal:26657/status
 
@@ -205,62 +889,133 @@ docker compose exec bridge curl -s http://host.docker.internal:26657/status
 docker compose restart bridge
 ```
 
-### Common Issues
-**"Model file not found"**
-- Ensure model file name in `.env` matches actual file in `models/` directory
+### Complete Recovery
 
-**"Cintara node not responding"**
-- Verify node is running: `ps aux | grep cintarad`
-- Check node status: `curl http://localhost:26657/status`
+```bash
+# Clean restart procedure
+docker compose down
+docker system prune -f
+docker compose up -d
+sleep 10
+./scripts/verify-smart-node.sh
+```
 
-**"Bridge can't connect to node"**
-- Ensure Cintara node is running on port 26657
-- Check firewall/network settings
+### Performance Monitoring
+
+```bash
+# System resources
+htop
+docker stats
+df -h
+
+# Service response times
+time curl -s http://localhost:8080/health
+time curl -s http://localhost:26657/status
+```
 
 ---
 
 ## 📁 Repository Structure
 
 ```
-cintara-node-llm-bridge/
-├── README.md                 # This file
-├── docker-compose.yml        # LLM + Bridge services
-├── .env.example             # Environment template
-├── bridge/                  # AI Bridge FastAPI application
+smart-blockchain-node/
+├── README.md                    # This file
+├── docker-compose.yml           # LLM + Bridge services
+├── .env.example                 # Environment template
+├── bridge/                      # AI Bridge FastAPI application
 │   ├── app.py
 │   ├── Dockerfile
 │   └── requirements.txt
-├── scripts/                 # Management scripts
-│   ├── setup-cintara-node.sh    # Manual node setup
-│   ├── start-smart-node.sh      # Unified startup
-│   └── generate-secure-password.sh
-├── models/                  # LLM model files (.gguf)
-└── data/                   # (Created at runtime for any data)
+├── scripts/                     # Management scripts
+│   ├── setup-blockchain-node.sh    # Node setup automation
+│   ├── start-smart-node.sh         # Unified startup
+│   ├── verify-smart-node.sh        # Comprehensive testing
+│   └── test-llm-functionality.sh   # LLM-specific tests
+└── models/                      # AI model files (.gguf)
 ```
+
+---
 
 ## 🎯 Benefits of Hybrid Approach
 
-✅ **Reliable Cintara Node** - Uses official script, guaranteed compatibility  
+✅ **Reliable Blockchain Node** - Uses official scripts, guaranteed compatibility  
 ✅ **Simplified Docker** - Only AI components, easier to debug  
 ✅ **Better Performance** - Node runs natively on host system  
 ✅ **Easy Updates** - Update blockchain and AI components independently  
 ✅ **Clear Separation** - Blockchain vs AI concerns properly separated  
-✅ **Production Ready** - Manual node setup for mission-critical blockchain operations
+✅ **Production Ready** - Manual node setup for mission-critical operations
 
 ---
 
-## 🎉 Success!
+## 🧪 Testing Your Smart Node
 
-You now have a **Smart Cintara Node** that combines:
-- Native Cintara blockchain validation
-- AI-powered analysis and monitoring  
-- RESTful API for intelligent blockchain insights
+### Basic Functionality Test
+```bash
+./scripts/test-llm-functionality.sh
+```
 
-The hybrid architecture provides the reliability of manual blockchain setup with the convenience of containerized AI services.
+### Comprehensive Verification (5 Phases)
+```bash
+./scripts/verify-smart-node.sh
+```
 
-**🔗 Important URLs:**
-- **Cintara Node RPC**: http://localhost:26657
-- **LLM Server**: http://localhost:8000  
-- **AI Bridge API**: http://localhost:8080
+The verification covers:
+1. **Infrastructure** - Docker, models, configuration
+2. **Blockchain Node** - RPC, sync status, connectivity  
+3. **AI Services** - LLM server, Bridge health
+4. **AI Integration** - Smart features, diagnostics
+5. **Advanced Features** - Transaction analysis, peer monitoring
 
-For support and updates, refer to the official [Cintara documentation](https://github.com/Cintaraio/cintara-testnet-script).
+### Interactive Testing
+
+Try these AI features once everything is running:
+
+```bash
+# Get comprehensive health report
+curl -X POST http://localhost:8080/chat \
+  -H 'Content-Type: application/json' \
+  -d '{"message":"Give me a complete health report of my blockchain node"}' | jq -r .response
+
+# Analyze recent activity
+curl -X POST http://localhost:8080/node/diagnose | jq .diagnosis
+
+# Monitor logs in real-time with AI analysis
+watch -n 30 'curl -s http://localhost:8080/node/logs | jq -r .log_analysis.summary'
+```
+
+---
+
+## 🎉 Success Verification
+
+Your Smart Blockchain Node is fully operational when:
+
+- [ ] Blockchain node responds on port 26657
+- [ ] Node is fully synced (catching_up: false)
+- [ ] LLM server responds on port 8000
+- [ ] AI Bridge responds on port 8080
+- [ ] All automated tests pass
+- [ ] AI can analyze node logs and provide diagnostics
+- [ ] Interactive AI chat responds with node insights
+
+**Final test:**
+```bash
+curl -s -X POST http://localhost:8080/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Give me a complete health report"}' | jq -r .response
+```
+
+If this returns intelligent analysis, congratulations! Your Smart Blockchain Node with AI integration is fully operational.
+
+---
+
+## 📞 Support & Resources
+
+- **Official Blockchain Guide**: Check the original testnet documentation
+- **Docker Issues**: `docker compose logs -f` for debugging
+- **Model Issues**: [Hugging Face Model Repository](https://huggingface.co/TheBloke/Mistral-7B-Instruct-v0.2-GGUF)
+- **Generate Diagnostic Report**: 
+  ```bash
+  ./scripts/verify-smart-node.sh > diagnostic-report.txt
+  ```
+
+**Note**: This setup combines blockchain reliability with AI intelligence - the blockchain node runs natively for maximum stability while AI services run in containers for easy management.

@@ -1,7 +1,7 @@
 #!/bin/bash
 
-echo "🔍 Smart Cintara Node Verification Workflow"
-echo "==========================================="
+echo "🔍 Smart Blockchain Node Verification Workflow"
+echo "=============================================="
 echo ""
 
 # Colors for output
@@ -180,7 +180,7 @@ TOTAL_TESTS=$((TESTS_PASSED + TESTS_FAILED))
 echo "📈 Total Tests: $TOTAL_TESTS"
 
 if [ $TESTS_FAILED -eq 0 ]; then
-    echo -e "${GREEN}🎉 Smart Cintara Node fully verified and operational!${NC}"
+    echo -e "${GREEN}🎉 Smart Blockchain Node fully verified and operational!${NC}"
     echo ""
     echo "🚀 Your node is ready for:"
     echo "- AI-powered blockchain monitoring"
@@ -189,7 +189,7 @@ if [ $TESTS_FAILED -eq 0 ]; then
     echo "- Interactive AI assistance"
     echo ""
     echo "🔗 Access URLs:"
-    echo "- Cintara Node: http://localhost:26657"
+    echo "- Blockchain Node: http://localhost:26657"
     echo "- LLM Server: http://localhost:8000"
     echo "- AI Bridge: http://localhost:8080"
     
@@ -208,7 +208,7 @@ if [ $TESTS_FAILED -eq 0 ]; then
     echo "watch -n 30 'curl -s http://localhost:8080/node/logs | jq .log_analysis.summary'"
     
 elif [ $TESTS_FAILED -le 3 ]; then
-    echo -e "${YELLOW}⚠️  Smart Cintara Node mostly operational with minor issues${NC}"
+    echo -e "${YELLOW}⚠️  Smart Blockchain Node mostly operational with minor issues${NC}"
     echo ""
     echo "✅ Core functionality working"
     echo "⚠️  Some advanced features may need attention"
@@ -216,14 +216,14 @@ elif [ $TESTS_FAILED -le 3 ]; then
     echo "🔧 Next steps:"
     echo "1. Review failed tests above"
     echo "2. Check service logs: docker compose logs -f"
-    echo "3. Ensure Cintara node is fully synced"
+    echo "3. Ensure blockchain node is fully synced"
     echo "4. Re-run verification: ./scripts/verify-smart-node.sh"
 else
-    echo -e "${RED}❌ Smart Cintara Node has significant issues${NC}"
+    echo -e "${RED}❌ Smart Blockchain Node has significant issues${NC}"
     echo ""
     echo "🔧 Troubleshooting checklist:"
     echo "1. Verify all prerequisites are installed"
-    echo "2. Check if Cintara node is running and synced"
+    echo "2. Check if blockchain node is running and synced"
     echo "3. Ensure Docker services are up: docker compose ps"
     echo "4. Check LLM model file exists: ls -la models/"
     echo "5. Review service logs: docker compose logs"

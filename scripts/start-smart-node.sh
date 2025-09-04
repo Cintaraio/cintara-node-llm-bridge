@@ -1,20 +1,20 @@
 #!/bin/bash
 
-echo "🚀 Starting Smart Cintara Node System"
-echo "====================================="
+echo "🚀 Starting Smart Blockchain Node System"
+echo "========================================"
 
-# Check if Cintara node is running
+# Check if blockchain node is running
 if ! curl -s http://localhost:26657/status > /dev/null; then
-    echo "❌ Cintara node not detected on localhost:26657"
+    echo "❌ Blockchain node not detected on localhost:26657"
     echo ""
-    echo "Please ensure the Cintara node is running first:"
-    echo "1. Run: ./setup-cintara-node.sh (if not already done)"
+    echo "Please ensure the blockchain node is running first:"
+    echo "1. Run: ./setup-blockchain-node.sh (if not already done)"
     echo "2. Or manually start: cintarad start --home ~/.tmp-cintarad"
     echo ""
     exit 1
 fi
 
-echo "✅ Cintara node detected and responding"
+echo "✅ Blockchain node detected and responding"
 
 # Check if .env file exists
 if [ ! -f .env ]; then
@@ -64,10 +64,10 @@ else
 fi
 
 echo ""
-echo "🎉 Smart Cintara Node startup complete!"
+echo "🎉 Smart Blockchain Node startup complete!"
 echo ""
 echo "🔗 Service URLs:"
-echo "- Cintara Node RPC: http://localhost:26657"
+echo "- Blockchain Node RPC: http://localhost:26657"
 echo "- LLM Server: http://localhost:8000"
 echo "- AI Bridge API: http://localhost:8080"
 echo ""
