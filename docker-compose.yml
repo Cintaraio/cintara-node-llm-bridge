@@ -1,63 +1,106 @@
 services:
+  # Smart Cintara Blockchain Node (based on official working guide)
   cintara-node:
     build:
       context: .
-      dockerfile: Dockerfile
-    image: cintara-node:local
-    container_name: cintara-node
+      dockerfile: Dockerfile.simple
+    image: cintara-node-smart:local
+    container_name: cintara-node-smart
+    platform: linux/amd64
     restart: unless-stopped
     environment:
-      - CHAIN_ID=${CHAIN_ID}
-      - MONIKER=${MONIKER}
-      - PUBLIC_IP=${PUBLIC_IP}
-      - LLM_BRIDGE_URL=http://bridge:8080/analyze
+      - CHAIN_ID=${CHAIN_ID:-cintara_11001-1}
+      - MONIKER=${MONIKER:-cintara-smart-node}
     volumes:
       - ./data:/data
+      - ./scripts:/scripts:ro
     ports:
-      - "26656:26656"
-      - "26657:26657"
+      - "26656:26656"  # P2P port
+      - "26657:26657"  # RPC port
+      - "1317:1317"    # API port
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:26657/status > /dev/null || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - cintara-network
 
-  config-patcher:
-    image: alpine:3.20
-    working_dir: /work
-    entrypoint: ["/bin/sh","-lc"]
-    environment:
-      - PUBLIC_IP=${PUBLIC_IP}
-      - RPC_PORT=${RPC_PORT}
-      - P2P_PORT=${P2P_PORT}
-    volumes:
-      - ./data:/data
-      - ./scripts:/work/scripts:ro
-    command: >
-      "/work/scripts/patch-config.sh /data/.tmp-cintarad/config/config.toml $PUBLIC_IP $RPC_PORT $P2P_PORT"
-
+  # LLM Server (CPU-based with llama.cpp)
   llama:
-    image: ${LLAMA_REPO}@${LLAMA_DIGEST}
+    image: ${LLAMA_REPO:-ghcr.io/ggerganov/llama.cpp}@${LLAMA_DIGEST:-sha256:76aaae6aea58f7ab0d83d3b5b1b83b27b75e6b8db59edada1e5ba57f6acfee42}
+    container_name: cintara-llm
+    restart: unless-stopped
     command: [
-      "--model","/models/${MODEL_FILE}",
-      "--ctx-size","${CTX_SIZE}",
-      "--threads","${LLM_THREADS}",
-      "--host","0.0.0.0",
-      "--port","8000"
+      "--model", "/models/${MODEL_FILE:-mistral-7b-instruct.Q4_K_M.gguf}",
+      "--ctx-size", "${CTX_SIZE:-2048}",
+      "--threads", "${LLM_THREADS:-8}",
+      "--host", "0.0.0.0",
+      "--port", "8000",
+      "--n-predict", "512"
     ]
     volumes:
       - ./models:/models:ro
-    expose: ["8000"]
+    environment:
+      - LLAMA_ARG_HOST=0.0.0.0
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8000/health > /dev/null || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - cintara-network
+    deploy:
+      resources:
+        limits:
+          cpus: '8.0'
+          memory: 8G
 
+  # AI Bridge - Makes the Cintara Node Smart
   bridge:
     build: ./bridge
+    container_name: cintara-ai-bridge
+    restart: unless-stopped
     environment:
       - LLAMA_SERVER_URL=http://llama:8000
       - CINTARA_NODE_URL=http://cintara-node:26657
       - LOG_PATH=/shared/logs
+      - AI_FEATURES_ENABLED=true
     volumes:
-      - ./data:/shared:ro  # Read-only access to node data
+      - ./data:/shared:ro
     depends_on:
       llama:
-        condition: service_started
+        condition: service_healthy
       cintara-node:
         condition: service_healthy
     ports:
-      - "8080:8080"
+      - "8080:8080"  # AI Bridge API
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/health > /dev/null || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - cintara-network
+
+  # Node Setup Helper (runs once to initialize)
+  node-setup:
+    build:
+      context: .
+      dockerfile: Dockerfile.simple
+    container_name: cintara-setup
+    platform: linux/amd64
+    volumes:
+      - ./data:/data
+      - ./setup-automation.sh:/setup-automation.sh:ro
+    environment:
+      - CHAIN_ID=${CHAIN_ID:-cintara_11001-1}
+      - MONIKER=${MONIKER:-cintara-smart-node}
+      - AUTO_SETUP=${AUTO_SETUP:-true}
+    command: ["/bin/bash", "/setup-automation.sh"]
+    networks:
+      - cintara-network
+
+networks:
+  cintara-network:
+    driver: bridge

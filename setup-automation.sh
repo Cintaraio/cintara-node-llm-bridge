@@ -1,0 +1,99 @@
+#!/bin/bash
+set -e
+
+echo "🚀 Starting Smart Cintara Node Setup..."
+
+# Check if already initialized
+if [ -f "/data/.tmp-cintarad/config/genesis.json" ]; then
+    echo "✅ Node already initialized. Checking chain ID..."
+    EXISTING_CHAIN_ID=$(jq -r '.chain_id' /data/.tmp-cintarad/config/genesis.json 2>/dev/null || echo "")
+    if [ "$EXISTING_CHAIN_ID" = "${CHAIN_ID}" ]; then
+        echo "✅ Node already configured for chain: $EXISTING_CHAIN_ID"
+        exit 0
+    else
+        echo "⚠️  Chain ID mismatch. Reinitializing..."
+        rm -rf /data/.tmp-cintarad
+    fi
+fi
+
+cd /home/cintara/cintara-testnet-script
+
+echo "📦 Making setup script executable..."
+chmod +x cintara_ubuntu_node.sh
+
+echo "🔧 Running automated Cintara node setup..."
+
+# Set up environment for automated setup
+export DEBIAN_FRONTEND=noninteractive
+export HOME=/home/cintara
+
+# Create expect script for automated input
+cat > /tmp/setup_expect.exp << 'EOF'
+#!/usr/bin/expect -f
+set timeout 60
+set moniker [lindex $argv 0]
+
+spawn ./cintara_ubuntu_node.sh
+
+# Handle node name input
+expect "Enter your node name:" {
+    send "$moniker\r"
+}
+
+# Handle keyring password (use empty password for automation)
+expect "Enter keyring passphrase:" {
+    send "\r"
+}
+
+expect "Re-enter keyring passphrase:" {
+    send "\r"
+}
+
+# Handle overwrite config prompt
+expect "overwrite" {
+    send "y\r"
+}
+
+# Wait for completion
+expect eof
+EOF
+
+# Install expect if not available
+if ! command -v expect &> /dev/null; then
+    sudo apt-get update && sudo apt-get install -y expect
+fi
+
+chmod +x /tmp/setup_expect.exp
+
+echo "🤖 Running automated setup with moniker: ${MONIKER}"
+/tmp/setup_expect.exp "${MONIKER}" || {
+    echo "⚠️  Automated setup failed, trying manual setup..."
+    
+    # Fallback: Manual setup with echo piping
+    echo -e "${MONIKER}\n\n\ny\n" | ./cintara_ubuntu_node.sh || {
+        echo "❌ Setup failed. Please run setup manually."
+        exit 1
+    }
+}
+
+# Verify setup
+if [ -f "/data/.tmp-cintarad/config/genesis.json" ]; then
+    CHAIN_ID_CHECK=$(jq -r '.chain_id' /data/.tmp-cintarad/config/genesis.json)
+    echo "✅ Setup completed successfully!"
+    echo "   Chain ID: $CHAIN_ID_CHECK"
+    echo "   Node directory: /data/.tmp-cintarad"
+    
+    # Display mnemonic if available
+    if [ -f "/data/.tmp-cintarad/mnemonic.txt" ]; then
+        echo "🔑 IMPORTANT: Save your mnemonic phrase:"
+        echo "=============================================="
+        cat /data/.tmp-cintarad/mnemonic.txt
+        echo "=============================================="
+        echo "⚠️  Store this mnemonic safely - you'll need it to restore your wallet!"
+    fi
+else
+    echo "❌ Setup verification failed - genesis.json not found"
+    exit 1
+fi
+
+echo "🎉 Smart Cintara Node setup complete! The node is ready to start."
