@@ -16,16 +16,6 @@ services:
     ports:
       - "26656:26656"
       - "26657:26657"
-    command: >
-      bash -lc "
-      if [ ! -f /data/.tmp-cintarad/config/genesis.json ]; then
-        echo 'First run: docker compose run --rm -e RUN_MODE=init cintara-node';
-        echo 'Then: docker compose run --rm config-patcher';
-        echo 'Finally: docker compose up -d';
-        sleep infinity;
-      else
-        cintarad start --home /data/.tmp-cintarad;
-      fi"
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:26657/status > /dev/null || exit 1"]
 
