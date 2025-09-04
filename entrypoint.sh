@@ -110,13 +110,19 @@ if [ "$MODE" = "init" ]; then
     echo "[cintara] Collect gentxs failed, this is normal for joining existing testnet"
   }
   
-  # Download the correct Cintara testnet genesis file
-  echo "[cintara] Downloading Cintara testnet genesis file..."
-  GENESIS_URL="https://raw.githubusercontent.com/Cintaraio/cintara-testnet-script/main/genesis.json"
-  if curl -f -s -o "$HOME_DIR/config/genesis.json" "$GENESIS_URL"; then
-    echo "[cintara] ✅ Genesis file downloaded successfully"
+  # Use bundled Cintara testnet genesis file
+  echo "[cintara] Using bundled Cintara testnet genesis file..."
+  if [ -f "/genesis.json" ]; then
+    cp /genesis.json "$HOME_DIR/config/genesis.json"
+    echo "[cintara] ✅ Genesis file copied successfully"
   else
-    echo "[cintara] ⚠️ Could not download genesis file, using local genesis"
+    echo "[cintara] ⚠️ Bundled genesis not found, downloading from repository..."
+    GENESIS_URL="https://raw.githubusercontent.com/Cintaraio/cintara-testnet-script/main/genesis.json"
+    if curl -f -s -o "$HOME_DIR/config/genesis.json" "$GENESIS_URL"; then
+      echo "[cintara] ✅ Genesis file downloaded successfully"
+    else
+      echo "[cintara] ⚠️ Could not download genesis file, using local genesis"
+    fi
   fi
   
   # Verify the genesis file has the correct chain ID

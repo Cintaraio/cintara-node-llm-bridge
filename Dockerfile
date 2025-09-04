@@ -13,9 +13,10 @@ USER root
 RUN wget -q https://github.com/Cintaraio/cintara-testnet-script/releases/download/ubuntu22.04/cintarad -O /usr/local/bin/cintarad \
  && chmod 0755 /usr/local/bin/cintarad
 
-# Copy and setup entrypoint
+# Copy genesis file and entrypoint
+COPY genesis.json /genesis.json
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
-RUN chmod +x /usr/local/bin/entrypoint.sh && chown cintara:cintara /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh && chown cintara:cintara /usr/local/bin/entrypoint.sh /genesis.json
 
 # Create data directory and set permissions
 RUN mkdir -p /data && chown -R 1000:1000 /data
