@@ -62,6 +62,33 @@ expect {
     }
 }
 
+# Handle overwrite config prompt (this comes first if config exists)
+expect {
+    "overwrite" {
+        send "y\r"
+    }
+    "Overwrite the existing configuration" {
+        send "y\r"
+    }
+    "start a new local node?" {
+        send "y\r"
+    }
+    "[y/n]" {
+        send "y\r"
+    }
+    "Enter keyring passphrase:" {
+        send "\r"
+        exp_continue
+    }
+    "Enter keyring passphrase (attempt" {
+        send "\r"
+        exp_continue
+    }
+    timeout {
+        puts "Continuing to keyring prompts..."
+    }
+}
+
 # Handle keyring password (use empty password for automation)
 expect {
     "Enter keyring passphrase:" {
@@ -96,16 +123,6 @@ expect {
     }
 }
 
-# Handle overwrite config prompt
-expect {
-    "overwrite" {
-        send "y\r"
-    }
-    timeout {
-        puts "Timeout waiting for overwrite prompt"
-    }
-}
-
 # Wait for completion
 expect eof
 EOF
@@ -136,8 +153,8 @@ echo "   /data permissions: $(ls -la /data 2>/dev/null || echo 'directory does n
     export AUTO_CONFIRM="y"
     
     # Fallback: Manual setup with more comprehensive input piping
-    # Provides: node name, empty password, empty password confirmation, yes to overwrite
-    echo -e "${MONIKER}\n\n\n\ny\ny\n" | timeout 300 ./cintara_ubuntu_node.sh || {
+    # Provides: node name, yes to overwrite, empty password, empty password confirmation, yes to any other prompts
+    echo -e "${MONIKER}\ny\n\n\ny\ny\n" | timeout 300 ./cintara_ubuntu_node.sh || {
         echo "❌ Setup failed. Please run setup manually."
         echo "🔍 Final debug info:"
         echo "   /data contents: $(ls -la /data 2>/dev/null || echo 'no /data directory')"
