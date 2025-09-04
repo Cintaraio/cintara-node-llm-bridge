@@ -3,6 +3,12 @@ set -e
 
 echo "🚀 Starting Smart Cintara Node Setup..."
 
+# Ensure /data directory exists and has proper permissions
+echo "📁 Setting up data directory permissions..."
+sudo mkdir -p /data
+sudo chown -R cintara:cintara /data
+sudo chmod -R 755 /data
+
 # Check if already initialized
 if [ -f "/data/.tmp-cintarad/config/genesis.json" ]; then
     echo "✅ Node already initialized. Checking chain ID..."
@@ -99,12 +105,26 @@ fi
 chmod +x /tmp/setup_expect.exp
 
 echo "🤖 Running automated setup with moniker: ${MONIKER}"
+
+# Debug: Show current user and permissions
+echo "🔍 Debug info:"
+echo "   Current user: $(whoami)"
+echo "   User ID: $(id -u)"
+echo "   Group ID: $(id -g)"
+echo "   /data permissions: $(ls -la /data 2>/dev/null || echo 'directory does not exist')"
+
 /tmp/setup_expect.exp "${MONIKER}" || {
     echo "⚠️  Automated setup failed, trying manual setup..."
     
+    # Fallback: Try environment variable approach
+    export NODE_NAME="${MONIKER}"
+    export AUTO_CONFIRM="y"
+    
     # Fallback: Manual setup with echo piping
-    echo -e "${MONIKER}\n\n\ny\n" | ./cintara_ubuntu_node.sh || {
+    echo -e "${MONIKER}\n\n\ny\n" | timeout 300 ./cintara_ubuntu_node.sh || {
         echo "❌ Setup failed. Please run setup manually."
+        echo "🔍 Final debug info:"
+        echo "   /data contents: $(ls -la /data 2>/dev/null || echo 'no /data directory')"
         exit 1
     }
 }
