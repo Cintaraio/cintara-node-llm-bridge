@@ -80,19 +80,23 @@ expect {
     }
 }
 
-# Handle overwrite config prompt (this comes first if config exists)
+# Main interaction loop - handle all prompts in sequence
 expect {
     "overwrite" {
         send "y\r"
+        exp_continue
     }
     "Overwrite the existing configuration" {
         send "y\r"
+        exp_continue
     }
     "start a new local node?" {
         send "y\r"
+        exp_continue
     }
     "[y/n]" {
         send "y\r"
+        exp_continue
     }
     "Enter keyring passphrase:" {
         send "\$keyring_password\r"
@@ -102,42 +106,31 @@ expect {
         send "\$keyring_password\r"
         exp_continue
     }
-    timeout {
-        puts "Continuing to keyring prompts..."
-    }
-}
-
-# Handle keyring password (use secure password from environment)
-expect {
-    "Enter keyring passphrase:" {
-        send "\$keyring_password\r"
-    }
-    "Enter keyring passphrase (attempt" {
-        send "\$keyring_password\r"
-    }
-    "keyring passphrase" {
-        send "\$keyring_password\r"
-    }
-    timeout {
-        puts "Timeout waiting for keyring passphrase prompt"
-    }
-}
-
-expect {
     "Re-enter keyring passphrase:" {
         send "\$keyring_password\r"
+        exp_continue
     }
     "Re-enter keyring passphrase (attempt" {
         send "\$keyring_password\r"
+        exp_continue
+    }
+    "keyring passphrase" {
+        send "\$keyring_password\r"
+        exp_continue
     }
     "re-enter" {
         send "\$keyring_password\r"
+        exp_continue
     }
     "Re-enter" {
         send "\$keyring_password\r"
+        exp_continue
+    }
+    eof {
+        puts "Setup completed successfully"
     }
     timeout {
-        puts "Timeout waiting for re-enter passphrase prompt"
+        puts "Timeout occurred - setup may have completed"
     }
 }
 
@@ -155,6 +148,7 @@ fi
 chmod +x /tmp/setup_expect.exp
 
 echo "🤖 Running automated setup with moniker: ${MONIKER}"
+echo "🔐 Password length: ${#KEYRING_PASSWORD} characters"
 
 # Debug: Show current user and permissions
 echo "🔍 Debug info:"
@@ -163,7 +157,10 @@ echo "   User ID: $(id -u)"
 echo "   Group ID: $(id -g)"
 echo "   /data permissions: $(ls -la /data 2>/dev/null || echo 'directory does not exist')"
 
-/tmp/setup_expect.exp "${MONIKER}" || {
+# Make expect script executable and run with more verbose output
+chmod +x /tmp/setup_expect.exp
+echo "🔍 Starting expect script with debugging..."
+expect -c "log_user 1; source /tmp/setup_expect.exp" "${MONIKER}" || {
     echo "⚠️  Automated setup failed, trying manual setup..."
     
     # Fallback: Try environment variable approach
