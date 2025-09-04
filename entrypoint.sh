@@ -1,5 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
+
+# If running a direct command (not init/start), execute it directly
+if [ $# -gt 0 ] && [ "$1" != "init" ] && [ "$1" != "start" ]; then
+  echo "[cintara] Executing direct command: $@"
+  exec cintarad "$@"
+fi
+
 MODE="${RUN_MODE:-start}"
 HOME_DIR="${CINTARA_HOME:-/data/.tmp-cintarad}"
 
