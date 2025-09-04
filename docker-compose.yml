@@ -17,11 +17,16 @@ services:
       - "26656:26656"  # P2P port
       - "26657:26657"  # RPC port
       - "1317:1317"    # API port
+    command: ["/bin/bash", "-c", "cd /home/cintara/cintara-testnet-script && /usr/local/bin/cintarad start --home /data/.tmp-cintarad --keyring-backend test"]
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:26657/status > /dev/null || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 30s
+    depends_on:
+      node-setup:
+        condition: service_completed_successfully
     networks:
       - cintara-network
 
