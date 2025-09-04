@@ -23,6 +23,9 @@ app = FastAPI(
 class TransactionRequest(BaseModel):
     transaction: Dict[str, Any]
 
+class ChatRequest(BaseModel):
+    message: str
+
 class NodeStatusResponse(BaseModel):
     status: str
     details: Dict[str, Any]
@@ -481,6 +484,181 @@ async def analyze_block_transactions(block_height: int):
         raise HTTPException(status_code=503, detail="Could not fetch block data")
     except Exception as e:
         logger.error(f"Transaction analysis error: {e}")
+        raise HTTPException(status_code=500, detail="Analysis failed")
+
+@app.post("/chat")
+async def chat_with_ai(req: Request):
+    """Interactive AI chat about node status and blockchain insights"""
+    try:
+        payload = await req.json()
+        user_message = payload.get("message", "")
+        
+        if not user_message:
+            raise HTTPException(status_code=400, detail="Message is required")
+        
+        # Gather current node context
+        node_context = {}
+        try:
+            # Get node status
+            status_response = requests.get(f"{CINTARA_NODE_URL}/status", timeout=3)
+            if status_response.status_code == 200:
+                node_context["status"] = status_response.json()
+            
+            # Get network info
+            net_response = requests.get(f"{CINTARA_NODE_URL}/net_info", timeout=3)
+            if net_response.status_code == 200:
+                node_context["network"] = net_response.json()
+        except Exception as e:
+            logger.warning(f"Could not gather node context: {e}")
+        
+        # Create context-aware prompt
+        context_summary = ""
+        if node_context:
+            status_info = node_context.get("status", {}).get("result", {})
+            sync_info = status_info.get("sync_info", {})
+            node_info = status_info.get("node_info", {})
+            
+            context_summary = f"""
+            Current Node Context:
+            - Node ID: {node_info.get('id', 'unknown')[:8]}...
+            - Moniker: {node_info.get('moniker', 'unknown')}
+            - Network: {node_info.get('network', 'unknown')}
+            - Latest Block: {sync_info.get('latest_block_height', '0')}
+            - Catching Up: {sync_info.get('catching_up', 'unknown')}
+            - Peer Count: {node_context.get('network', {}).get('result', {}).get('n_peers', '0')}
+            """
+        
+        prompt = f"""
+        You are an expert blockchain analyst helping monitor a Cintara node. 
+        Answer the user's question about their blockchain node using the provided context.
+        
+        {context_summary}
+        
+        User Question: {user_message}
+        
+        Provide a helpful, accurate response about the node's status, performance, or blockchain operations. 
+        If you need more specific data that isn't available in the context, suggest how to get it.
+        Keep responses concise but informative.
+        """
+        
+        t0 = time.time()
+        r = requests.post(
+            f"{LLAMA_SERVER_URL}/completion",
+            json={
+                "prompt": prompt,
+                "n_predict": 400,
+                "temperature": 0.3,
+                "stop": ["\n\nUser:", "\n\nQuestion:"]
+            },
+            timeout=30
+        )
+        
+        if r.status_code != 200:
+            raise HTTPException(status_code=503, detail="AI chat service unavailable")
+        
+        llm_response = r.json()
+        ai_response = llm_response.get("content", "").strip()
+        
+        if not ai_response:
+            ai_response = "I apologize, but I couldn't generate a response. Please try rephrasing your question."
+        
+        latency_ms = int((time.time() - t0) * 1000)
+        
+        return {
+            "message": user_message,
+            "response": ai_response,
+            "node_context_available": bool(node_context),
+            "latency_ms": latency_ms,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Chat failed: {e}")
+        raise HTTPException(status_code=500, detail="Chat service error")
+
+@app.get("/node/peers")
+async def get_node_peers():
+    """Get detailed peer information with AI analysis"""
+    try:
+        net_response = requests.get(f"{CINTARA_NODE_URL}/net_info", timeout=5)
+        
+        if net_response.status_code != 200:
+            raise HTTPException(status_code=503, detail="Could not fetch peer information")
+        
+        net_data = net_response.json()
+        result = net_data.get("result", {})
+        peers = result.get("peers", [])
+        
+        # Prepare peer data for analysis
+        peer_summary = {
+            "total_peers": result.get("n_peers", "0"),
+            "listening": result.get("listening", False),
+            "listeners": result.get("listeners", []),
+            "peer_details": peers[:10]  # Analyze first 10 peers to avoid token limits
+        }
+        
+        prompt = f"""
+        Analyze this Cintara node's peer connectivity:
+        
+        Peer Data: {json.dumps(peer_summary, indent=2)}
+        
+        Assess:
+        1. Peer connectivity health
+        2. Geographic/network diversity
+        3. Connection stability indicators
+        4. Potential connectivity issues
+        
+        Return JSON:
+        {{
+            "connectivity_health": "excellent|good|fair|poor",
+            "peer_diversity": "high|medium|low",
+            "issues": ["list of concerns"],
+            "recommendations": ["suggested improvements"],
+            "summary": "brief assessment"
+        }}
+        """
+        
+        t0 = time.time()
+        r = requests.post(
+            f"{LLAMA_SERVER_URL}/completion",
+            json={
+                "prompt": prompt,
+                "n_predict": 250,
+                "temperature": 0.1,
+                "stop": ["}"]
+            },
+            timeout=25
+        )
+        
+        analysis = {"connectivity_health": "unknown", "summary": "Analysis unavailable"}
+        if r.status_code == 200:
+            content = r.json().get("content", "").strip()
+            try:
+                if not content.endswith("}"):
+                    content += "}"
+                analysis = json.loads(content)
+            except json.JSONDecodeError:
+                analysis["summary"] = content
+        
+        latency_ms = int((time.time() - t0) * 1000)
+        
+        return {
+            "peer_analysis": analysis,
+            "peer_count": len(peers),
+            "total_peers": result.get("n_peers", 0),
+            "listening": result.get("listening", False),
+            "peers_sample": peers[:5],  # Return first 5 peers as sample
+            "latency_ms": latency_ms,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except requests.RequestException as e:
+        logger.error(f"Peer analysis failed: {e}")
+        raise HTTPException(status_code=503, detail="Could not analyze peers")
+    except Exception as e:
+        logger.error(f"Peer analysis error: {e}")
         raise HTTPException(status_code=500, detail="Analysis failed")
 
 # Legacy endpoint for backward compatibility
