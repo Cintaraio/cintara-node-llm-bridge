@@ -6,7 +6,6 @@ services:
       dockerfile: Dockerfile.simple
     image: cintara-node-smart:local
     container_name: cintara-node-smart
-    platform: linux/amd64
     restart: unless-stopped
     environment:
       - CHAIN_ID=${CHAIN_ID:-cintara_11001-1}
@@ -89,7 +88,6 @@ services:
       context: .
       dockerfile: Dockerfile.simple
     container_name: cintara-setup
-    platform: linux/amd64
     volumes:
       - ./data:/data
       - ./setup-automation.sh:/setup-automation.sh:ro
