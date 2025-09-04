@@ -95,6 +95,7 @@ services:
       - CHAIN_ID=${CHAIN_ID:-cintara_11001-1}
       - MONIKER=${MONIKER:-cintara-smart-node}
       - AUTO_SETUP=${AUTO_SETUP:-true}
+      - KEYRING_PASSWORD=${KEYRING_PASSWORD}
     command: ["/bin/bash", "/setup-automation.sh"]
     networks:
       - cintara-network

@@ -218,6 +218,18 @@ MONIKER=your-smart-node-name
 MODEL_FILE=mistral-7b-instruct.Q4_K_M.gguf
 LLM_THREADS=8
 CTX_SIZE=2048
+
+# Security: Generate a secure keyring password
+KEYRING_PASSWORD=your-secure-password-here
+```
+
+**🔐 Generate a secure keyring password:**
+```bash
+# Option 1: Use the provided script
+./scripts/generate-secure-password.sh
+
+# Option 2: Generate manually
+openssl rand -base64 16 | tr -d "=+/"
 ```
 
 ### Step 3: One-Command Setup

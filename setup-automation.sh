@@ -3,6 +3,23 @@ set -e
 
 echo "🚀 Starting Smart Cintara Node Setup..."
 
+# Set up secure keyring password from environment or generate one
+if [ -z "$KEYRING_PASSWORD" ]; then
+    echo "⚠️  KEYRING_PASSWORD not set in environment. Generating secure password..."
+    export KEYRING_PASSWORD=$(openssl rand -base64 12 | tr -d "=+/" | cut -c1-12)
+    echo "🔐 Generated keyring password: $KEYRING_PASSWORD"
+    echo "💾 Save this password securely - you'll need it to access your wallet!"
+else
+    echo "🔐 Using keyring password from environment variable"
+fi
+
+# Validate password length (minimum 8 characters)
+if [ ${#KEYRING_PASSWORD} -lt 8 ]; then
+    echo "❌ Error: KEYRING_PASSWORD must be at least 8 characters long"
+    echo "Current length: ${#KEYRING_PASSWORD}"
+    exit 1
+fi
+
 # Ensure /data directory exists and has proper permissions
 echo "📁 Setting up data directory permissions..."
 sudo mkdir -p /data
@@ -38,10 +55,11 @@ sudo ln -fs /usr/share/zoneinfo/UTC /etc/localtime
 echo 'UTC' | sudo tee /etc/timezone > /dev/null
 
 # Create expect script for automated input
-cat > /tmp/setup_expect.exp << 'EOF'
+cat > /tmp/setup_expect.exp << EOF
 #!/usr/bin/expect -f
 set timeout 60
-set moniker [lindex $argv 0]
+set moniker [lindex \$argv 0]
+set keyring_password "$KEYRING_PASSWORD"
 
 spawn ./cintara_ubuntu_node.sh
 
@@ -77,11 +95,11 @@ expect {
         send "y\r"
     }
     "Enter keyring passphrase:" {
-        send "\r"
+        send "\$keyring_password\r"
         exp_continue
     }
     "Enter keyring passphrase (attempt" {
-        send "\r"
+        send "\$keyring_password\r"
         exp_continue
     }
     timeout {
@@ -89,16 +107,16 @@ expect {
     }
 }
 
-# Handle keyring password (use empty password for automation)
+# Handle keyring password (use secure password from environment)
 expect {
     "Enter keyring passphrase:" {
-        send "\r"
+        send "\$keyring_password\r"
     }
     "Enter keyring passphrase (attempt" {
-        send "\r"
+        send "\$keyring_password\r"
     }
     "keyring passphrase" {
-        send "\r"
+        send "\$keyring_password\r"
     }
     timeout {
         puts "Timeout waiting for keyring passphrase prompt"
@@ -107,16 +125,16 @@ expect {
 
 expect {
     "Re-enter keyring passphrase:" {
-        send "\r"
+        send "\$keyring_password\r"
     }
     "Re-enter keyring passphrase (attempt" {
-        send "\r"
+        send "\$keyring_password\r"
     }
     "re-enter" {
-        send "\r"
+        send "\$keyring_password\r"
     }
     "Re-enter" {
-        send "\r"
+        send "\$keyring_password\r"
     }
     timeout {
         puts "Timeout waiting for re-enter passphrase prompt"
@@ -153,8 +171,8 @@ echo "   /data permissions: $(ls -la /data 2>/dev/null || echo 'directory does n
     export AUTO_CONFIRM="y"
     
     # Fallback: Manual setup with more comprehensive input piping
-    # Provides: node name, yes to overwrite, empty password, empty password confirmation, yes to any other prompts
-    echo -e "${MONIKER}\ny\n\n\ny\ny\n" | timeout 300 ./cintara_ubuntu_node.sh || {
+    # Provides: node name, yes to overwrite, secure password, password confirmation, yes to any other prompts
+    echo -e "${MONIKER}\ny\n${KEYRING_PASSWORD}\n${KEYRING_PASSWORD}\ny\ny\n" | timeout 300 ./cintara_ubuntu_node.sh || {
         echo "❌ Setup failed. Please run setup manually."
         echo "🔍 Final debug info:"
         echo "   /data contents: $(ls -la /data 2>/dev/null || echo 'no /data directory')"
