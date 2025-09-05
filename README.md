@@ -80,19 +80,45 @@ sudo su ubuntu
 cd ~
 cd cintara-node-llm-bridge
 sudo mkdir -p models && cd models
-sudo wget https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF/resolve/main/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf
+sudo wget -O tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf "https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF/resolve/main/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf"
+**edit .env file to configure the right llm - replace the MODEL_FILE entry**
+cd ~
+cd cintara-node-llm-bridge
+sudo vi .env 
+MODEL_FILE=tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf
 
+# 9. **Start AI services**
+cd ~
+sudo snap install docker
+cd cintara-node-llm-bridge
+sudo ./scripts/start-smart-node.sh
 
-# 6. Start AI services
-./scripts/start-smart-node.sh
+# 10. **Verify everything works - testing scripts**
 
-# 7. Verify everything works
-./scripts/verify-smart-node.sh
-```
+  # 10.1 Test Cintara node RPC
+  curl http://localhost:26657/status | jq .sync_info
+  
+  # 10.2 Test Cintara node API  
+  curl http://localhost:1317/cosmos/base/node/v1beta1/config
+  
+  # 10.3 Test LLM server  
+  curl http://localhost:8000/health
+  
+  # 10.4 Test AI bridge
+  curl http://localhost:8080/health
+
+# 11 Visit https://testnet.cintara.io/nodes and confirm that the Cintara node name you configured appears in the node list.
+
 
 **🎯 Result**: Smart Cintara Node with AI capabilities running on:
 - **Cintara Node**: `http://localhost:26657` (RPC) + `http://localhost:1317` (API)
 - **AI Bridge**: `http://localhost:8080` (AI-powered blockchain analysis)
+
+
+**If all four tests return OK or valid responses, the Cintara Node, LLM, and bridge are running successfully.
+In case of issues or if troubleshooting is required, refer to the detailed steps below in the section: 🚀 Complete Setup Guide.**
+
+```
 
 ## 🏗️ Architecture Overview
 
