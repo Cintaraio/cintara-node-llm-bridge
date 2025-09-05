@@ -150,7 +150,12 @@ async def diagnose_node():
             raise HTTPException(status_code=503, detail="LLM analysis failed")
         
         llm_response = r.json()
-        content = llm_response.get("content", "").strip()
+        content = (
+            llm_response.get("content", "") or 
+            llm_response.get("response", "") or
+            llm_response.get("text", "") or
+            ""
+        ).strip()
         
         # Try to parse JSON response
         try:
@@ -159,11 +164,13 @@ async def diagnose_node():
                 content += "}"
             analysis = json.loads(content)
         except json.JSONDecodeError:
+            logger.warning(f"Failed to parse LLM JSON response. Raw content: {content}")
+            logger.warning(f"Full LLM response: {llm_response}")
             analysis = {
                 "health_score": "unknown",
                 "issues": ["Failed to parse LLM response"],
                 "recommendations": ["Check LLM server configuration"],
-                "summary": content
+                "summary": content or "No content received from LLM"
             }
         
         latency_ms = int((time.time() - t0) * 1000)
@@ -214,7 +221,12 @@ async def analyze_transaction(req: TransactionRequest):
             raise HTTPException(status_code=503, detail="LLM analysis failed")
         
         llm_response = r.json()
-        content = llm_response.get("content", "").strip()
+        content = (
+            llm_response.get("content", "") or 
+            llm_response.get("response", "") or
+            llm_response.get("text", "") or
+            ""
+        ).strip()
         
         # Try to parse JSON response
         try:
@@ -355,7 +367,12 @@ async def analyze_logs():
             raise HTTPException(status_code=503, detail="LLM log analysis failed")
         
         llm_response = r.json()
-        content = llm_response.get("content", "").strip()
+        content = (
+            llm_response.get("content", "") or 
+            llm_response.get("response", "") or
+            llm_response.get("text", "") or
+            ""
+        ).strip()
         
         # Try to parse JSON response
         try:
@@ -453,7 +470,12 @@ async def analyze_block_transactions(block_height: int):
             raise HTTPException(status_code=503, detail="Transaction analysis failed")
         
         llm_response = r.json()
-        content = llm_response.get("content", "").strip()
+        content = (
+            llm_response.get("content", "") or 
+            llm_response.get("response", "") or
+            llm_response.get("text", "") or
+            ""
+        ).strip()
         
         # Parse LLM response
         try:
@@ -557,9 +579,16 @@ async def chat_with_ai(req: Request):
             raise HTTPException(status_code=503, detail="AI chat service unavailable")
         
         llm_response = r.json()
-        ai_response = llm_response.get("content", "").strip()
+        # llama.cpp uses "content" field, but let's check multiple possible fields
+        ai_response = (
+            llm_response.get("content", "") or 
+            llm_response.get("response", "") or
+            llm_response.get("text", "") or
+            ""
+        ).strip()
         
         if not ai_response:
+            logger.warning(f"Empty LLM response. Full response: {llm_response}")
             ai_response = "I apologize, but I couldn't generate a response. Please try rephrasing your question."
         
         latency_ms = int((time.time() - t0) * 1000)
