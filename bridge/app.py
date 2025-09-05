@@ -605,7 +605,9 @@ async def chat_with_ai(req: Request):
         raise
     except Exception as e:
         logger.error(f"Chat failed: {e}")
-        raise HTTPException(status_code=500, detail="Chat service error")
+        import traceback
+        logger.error(f"Chat error traceback: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Chat service error: {str(e)}")
 
 @app.get("/node/peers")
 async def get_node_peers():
@@ -689,6 +691,49 @@ async def get_node_peers():
     except Exception as e:
         logger.error(f"Peer analysis error: {e}")
         raise HTTPException(status_code=500, detail="Analysis failed")
+
+# Debug endpoint to test LLM connectivity
+@app.get("/debug/llm")
+async def debug_llm():
+    """Debug endpoint to test LLM server connectivity"""
+    try:
+        # Test basic LLM connectivity
+        test_response = requests.get(f"{LLAMA_SERVER_URL}/health", timeout=5)
+        llm_health = {
+            "status_code": test_response.status_code,
+            "response": test_response.text if test_response.status_code == 200 else "Error"
+        }
+        
+        # Test completion endpoint
+        completion_response = requests.post(
+            f"{LLAMA_SERVER_URL}/completion",
+            json={
+                "prompt": "Hello",
+                "max_tokens": 10,
+                "temperature": 0.1
+            },
+            timeout=10
+        )
+        
+        completion_result = {
+            "status_code": completion_response.status_code,
+            "response": completion_response.json() if completion_response.status_code == 200 else completion_response.text
+        }
+        
+        return {
+            "llm_server_url": LLAMA_SERVER_URL,
+            "health_check": llm_health,
+            "completion_test": completion_result,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Debug LLM test failed: {e}")
+        return {
+            "error": str(e),
+            "llm_server_url": LLAMA_SERVER_URL,
+            "timestamp": datetime.utcnow().isoformat()
+        }
 
 # Legacy endpoint for backward compatibility
 @app.post("/analyze_transaction")
