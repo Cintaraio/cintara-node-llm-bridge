@@ -19,9 +19,9 @@ chmod +x scripts/*.sh
 cp .env.example .env
 nano .env  # Edit MODEL_FILE and other settings
 
-# 5. Download AI model (~4GB)
+# 5. Download AI model (~638MB)
 mkdir -p models && cd models
-wget https://huggingface.co/TheBloke/Mistral-7B-Instruct-v0.2-GGUF/resolve/main/mistral-7b-instruct-v0.2.Q4_K_M.gguf -O mistral-7b-instruct.Q4_K_M.gguf
+wget https://huggingface.co/TinyLlama/TinyLlama-1.1B-Chat-v1.0/resolve/main/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf -O tinyllama-1.1b-chat.Q4_K_M.gguf
 cd ..
 
 # 6. Start AI services
@@ -42,7 +42,7 @@ cd ..
 │   Cintara Node  │    │   LLM Server     │    │   AI Bridge     │
 │   (Official)    │◄───┤   (Docker)       │◄───┤   (Docker)      │
 │   Port: 26657   │    │   Port: 8000     │    │   Port: 8080    │
-│   Chain: cintara│    │   Mistral 7B     │    │   FastAPI       │
+│   Chain: cintara│    │   TinyLlama 1B   │    │   FastAPI       │
 │   _11001-1      │    │                  │    │                 │
 └─────────────────┘    └──────────────────┘    └─────────────────┘
 ```
@@ -50,7 +50,7 @@ cd ..
 ## 🎯 What You Get
 
 - **Cintara Testnet Node** - Official testnet validator using proven setup scripts
-- **AI/LLM Integration** - CPU-based Mistral 7B model for intelligent blockchain analysis
+- **AI/LLM Integration** - CPU-based TinyLlama 1.1B model for intelligent blockchain analysis
 - **Smart Bridge API** - AI-powered Cintara node monitoring and diagnostics
 - **Hybrid Architecture** - Reliable official node setup + containerized AI services
 - **Production Ready** - Based on official Cintara documentation and best practices
@@ -592,7 +592,7 @@ nano .env
 **Required settings in `.env`:**
 ```bash
 # Model configuration
-MODEL_FILE=mistral-7b-instruct.Q4_K_M.gguf
+MODEL_FILE=tinyllama-1.1b-chat.Q4_K_M.gguf
 LLM_THREADS=4  # Set to your CPU count (4 for most systems)
 CTX_SIZE=2048  # Reduce to 1024 if you have <8GB RAM
 
@@ -613,9 +613,9 @@ NODE_URL=http://localhost:26657
 mkdir -p models
 cd models
 
-# Download Mistral 7B model (~4GB) - may take 5-10 minutes
-echo "📥 Downloading AI model (this may take several minutes)..."
-wget https://huggingface.co/TheBloke/Mistral-7B-Instruct-v0.2-GGUF/resolve/main/mistral-7b-instruct-v0.2.Q4_K_M.gguf -O mistral-7b-instruct.Q4_K_M.gguf
+# Download TinyLlama model (~638MB) - takes 1-2 minutes
+echo "📥 Downloading AI model (this may take a couple minutes)..."
+wget https://huggingface.co/TinyLlama/TinyLlama-1.1B-Chat-v1.0/resolve/main/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf -O tinyllama-1.1b-chat.Q4_K_M.gguf
 
 cd ..
 ```
@@ -757,7 +757,7 @@ curl -s http://localhost:8080/node/transactions/$LATEST_BLOCK | jq .
 | **Cintara Node API** | 1317 | REST API endpoint |
 | **Cintara P2P** | 26656 | Peer-to-peer network connections |
 | **Smart Bridge** | 8080 | AI-enhanced Cintara monitoring API |
-| **LLM Server** | 8000 | Internal AI model server (Mistral 7B) |
+| **LLM Server** | 8000 | Internal AI model server (TinyLlama 1.1B) |
 
 ---
 
@@ -1243,7 +1243,7 @@ If this returns intelligent analysis of your Cintara node, congratulations! Your
 ### Technical Resources
 - **Docker Issues**: `docker compose logs -f` for AI services debugging
 - **Node Issues**: `journalctl -u cintarachain.service -f` for Cintara node logs
-- **AI Model**: [Mistral 7B GGUF Model](https://huggingface.co/TheBloke/Mistral-7B-Instruct-v0.2-GGUF)
+- **AI Model**: [TinyLlama 1.1B GGUF Model](https://huggingface.co/TinyLlama/TinyLlama-1.1B-Chat-v1.0)
 
 ### Diagnostic Tools
 ```bash

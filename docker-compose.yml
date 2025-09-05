@@ -5,12 +5,12 @@ services:
     container_name: cintara-llm
     restart: unless-stopped
     command: [
-      "--model", "/models/${MODEL_FILE:-mistral-7b-instruct.Q4_K_M.gguf}",
-      "--ctx-size", "${CTX_SIZE:-512}",
-      "--threads", "${LLM_THREADS:-2}",
+      "--model", "/models/${MODEL_FILE:-tinyllama-1.1b-chat.Q4_K_M.gguf}",
+      "--ctx-size", "${CTX_SIZE:-1024}",
+      "--threads", "${LLM_THREADS:-4}",
       "--host", "0.0.0.0",
       "--port", "8000",
-      "--n-predict", "128",
+      "--n-predict", "256",
       "--verbose"
     ]
     volumes:
@@ -28,11 +28,11 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '3.0'  # Use 3.0 out of 4 CPUs, leave more for system
-          memory: 4G   # Further reduced memory allocation
+          cpus: '2.0'  # Use only 2 CPUs
+          memory: 3G   # Minimal memory allocation
         reservations:
-          cpus: '2.0'  # Reserve at least 2 CPUs
-          memory: 4G
+          cpus: '1.0'  # Reserve only 1 CPU
+          memory: 2G
 
   # AI Bridge - Connects to host Cintara node
   bridge:

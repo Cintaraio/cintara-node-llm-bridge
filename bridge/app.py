@@ -143,7 +143,7 @@ async def diagnose_node():
                 "temperature": 0.1,
                 "stop": ["}"]
             },
-            timeout=15
+            timeout=10
         )
         
         if r.status_code != 200:
@@ -214,7 +214,7 @@ async def analyze_transaction(req: TransactionRequest):
                 "temperature": 0.0,
                 "stop": ["}"]
             },
-            timeout=15
+            timeout=10
         )
         
         if r.status_code != 200:
@@ -463,7 +463,7 @@ async def analyze_block_transactions(block_height: int):
                 "temperature": 0.1,
                 "stop": ["}"]
             },
-            timeout=15
+            timeout=10
         )
         
         if r.status_code != 200:
@@ -572,7 +572,7 @@ async def chat_with_ai(req: Request):
                 "temperature": 0.3,
                 "stop": ["\n\nUser:", "\n\nQuestion:"]
             },
-            timeout=15
+            timeout=10
         )
         
         if r.status_code != 200:
