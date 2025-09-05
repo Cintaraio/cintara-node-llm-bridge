@@ -1,23 +1,26 @@
-# 🚀 Smart Blockchain Node with AI Integration
+# 🚀 Smart Cintara Node with AI Integration
 
-A hybrid blockchain node setup that combines a blockchain validator with AI-powered analysis capabilities using LLM integration.
+A hybrid setup that combines a Cintara blockchain testnet validator with AI-powered analysis capabilities using LLM integration. This setup uses the [official Cintara testnet script](https://github.com/Cintaraio/cintara-testnet-script) for maximum reliability.
 
 ## 🏗️ Architecture Overview
 
 ```
 ┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│  Blockchain     │    │   LLM Server     │    │   AI Bridge     │
-│  Node (Manual)  │◄───┤   (Docker)       │◄───┤   (Docker)      │
+│   Cintara Node  │    │   LLM Server     │    │   AI Bridge     │
+│   (Official)    │◄───┤   (Docker)       │◄───┤   (Docker)      │
 │   Port: 26657   │    │   Port: 8000     │    │   Port: 8080    │
+│   Chain: cintara│    │   Mistral 7B     │    │   FastAPI       │
+│   _11001-1      │    │                  │    │                 │
 └─────────────────┘    └──────────────────┘    └─────────────────┘
 ```
 
 ## 🎯 What You Get
 
-- **Blockchain Node** - Native testnet validator for maximum reliability
-- **AI/LLM Integration** - CPU-based Mistral 7B model for intelligent analysis
-- **Smart Bridge API** - AI-powered blockchain monitoring and diagnostics
-- **Hybrid Architecture** - Best of both manual setup and containerization
+- **Cintara Testnet Node** - Official testnet validator using proven setup scripts
+- **AI/LLM Integration** - CPU-based Mistral 7B model for intelligent blockchain analysis
+- **Smart Bridge API** - AI-powered Cintara node monitoring and diagnostics
+- **Hybrid Architecture** - Reliable official node setup + containerized AI services
+- **Production Ready** - Based on official Cintara documentation and best practices
 
 ## 📋 Prerequisites
 
@@ -405,17 +408,87 @@ cd smart-blockchain-node
 chmod +x scripts/*.sh
 ```
 
-### Step 5: Setup Blockchain Node
+### Step 5: Setup Cintara Blockchain Node
+
+This setup uses the [Official Cintara Testnet Script](https://github.com/Cintaraio/cintara-testnet-script) for maximum reliability and compatibility.
+
+#### 5.1 Cintara Node Requirements
+
+**System Requirements (from official docs):**
+- **OS**: Ubuntu 20.04 or 22.04 LTS (recommended: 22.04)
+- **RAM**: 4GB minimum (8GB recommended for AI integration)
+- **Storage**: 20GB available (50GB recommended for full setup)
+- **CPU**: 2 cores minimum
+- **Network**: Stable internet connection
+
+#### 5.2 Cintara Network Details
+
+- **Chain ID**: `cintara_11001-1`
+- **Token Denom**: `cint`
+- **RPC Port**: 26657
+- **API Port**: 1317  
+- **P2P Port**: 26656
+
+#### 5.3 Automated Setup
 
 ```bash
-# Run automated setup script
+# Run automated setup script (uses official Cintara script)
 ./scripts/setup-blockchain-node.sh
 ```
 
-**During setup:**
-- Enter your node name (e.g., "my-smart-node")
-- Set a secure keyring password (8+ characters)
-- **Save the mnemonic phrase securely!**
+**The script will:**
+1. Clone the [official Cintara testnet repository](https://github.com/Cintaraio/cintara-testnet-script)
+2. Run `cintara_ubuntu_node.sh` with interactive setup
+3. Configure the node as a systemd service
+4. Initialize blockchain data directory
+
+#### 5.4 Interactive Setup Process
+
+**During setup, you'll be prompted for:**
+- **Node Name**: Enter a unique identifier (e.g., "my-smart-node")
+- **Keyring Password**: Set a secure password (8+ characters)
+- **⚠️ CRITICAL**: **Save your mnemonic phrase securely!** This is required for key recovery.
+
+#### 5.5 Verify Cintara Node Installation
+
+```bash
+# Check if node service is running
+sudo systemctl status cintarachain.service
+
+# View real-time node logs
+journalctl -u cintarachain.service -f
+
+# Test RPC endpoint
+curl -s http://localhost:26657/status | jq .result.sync_info
+
+# Check sync status (should eventually show "catching_up": false)
+curl -s http://localhost:26657/status | jq .result.sync_info.catching_up
+
+# Check peer connections
+curl -s http://localhost:26657/net_info | jq .result.n_peers
+```
+
+#### 5.6 Manual Setup (Alternative)
+
+If you prefer to run the official setup manually:
+
+```bash
+# Clone official repository
+git clone https://github.com/Cintaraio/cintara-testnet-script.git
+cd cintara-testnet-script
+
+# Make script executable  
+chmod +x cintara_ubuntu_node.sh
+
+# Run official setup
+./cintara_ubuntu_node.sh
+```
+
+**Important Notes:**
+- This is **testnet software** - use at your own risk
+- The node will sync with the Cintara testnet blockchain
+- Initial sync may take 30-60 minutes depending on network speed
+- Mnemonic phrase backup is essential for key recovery
 
 ### Step 6: Configure Environment
 
@@ -473,8 +546,11 @@ docker compose up -d
 ### Manual Health Checks
 
 ```bash
-# Test blockchain node
+# Test Cintara node RPC
 curl http://localhost:26657/status | jq .sync_info
+
+# Test Cintara node API  
+curl http://localhost:1317/cosmos/base/node/v1beta1/config
 
 # Test LLM server  
 curl http://localhost:8000/health
@@ -579,10 +655,11 @@ curl -s http://localhost:8080/node/transactions/$LATEST_BLOCK | jq .
 
 | Service | Port | Description |
 |---------|------|-------------|
-| **Blockchain Node** | 26657 | Blockchain RPC API |
-| **P2P Network** | 26656 | Blockchain peer connections |
-| **Smart Bridge** | 8080 | AI-enhanced blockchain API |
-| **LLM Server** | 8000 | Internal AI model server |
+| **Cintara Node RPC** | 26657 | Blockchain RPC API (cintara_11001-1) |
+| **Cintara Node API** | 1317 | REST API endpoint |
+| **Cintara P2P** | 26656 | Peer-to-peer network connections |
+| **Smart Bridge** | 8080 | AI-enhanced Cintara monitoring API |
+| **LLM Server** | 8000 | Internal AI model server (Mistral 7B) |
 
 ---
 
@@ -1001,21 +1078,41 @@ Your Smart Blockchain Node is fully operational when:
 ```bash
 curl -s -X POST http://localhost:8080/chat \
   -H "Content-Type: application/json" \
-  -d '{"message": "Give me a complete health report"}' | jq -r .response
+  -d '{"message": "Give me a complete health report of my Cintara node"}' | jq -r .response
 ```
 
-If this returns intelligent analysis, congratulations! Your Smart Blockchain Node with AI integration is fully operational.
+If this returns intelligent analysis of your Cintara node, congratulations! Your **Smart Cintara Node with AI Integration** is fully operational and connected to the Cintara testnet.
 
 ---
 
 ## 📞 Support & Resources
 
-- **Official Blockchain Guide**: Check the original testnet documentation
-- **Docker Issues**: `docker compose logs -f` for debugging
-- **Model Issues**: [Hugging Face Model Repository](https://huggingface.co/TheBloke/Mistral-7B-Instruct-v0.2-GGUF)
-- **Generate Diagnostic Report**: 
-  ```bash
-  ./scripts/verify-smart-node.sh > diagnostic-report.txt
-  ```
+### Official Documentation
+- **Cintara Testnet Guide**: [Official Cintara Testnet Script](https://github.com/Cintaraio/cintara-testnet-script) - Primary reference for node setup
+- **Cintara Network**: `cintara_11001-1` testnet blockchain
+- **Token Information**: Native token `cint`
 
-**Note**: This setup combines blockchain reliability with AI intelligence - the blockchain node runs natively for maximum stability while AI services run in containers for easy management.
+### Technical Resources
+- **Docker Issues**: `docker compose logs -f` for AI services debugging
+- **Node Issues**: `journalctl -u cintarachain.service -f` for Cintara node logs
+- **AI Model**: [Mistral 7B GGUF Model](https://huggingface.co/TheBloke/Mistral-7B-Instruct-v0.2-GGUF)
+
+### Diagnostic Tools
+```bash
+# Generate comprehensive diagnostic report
+./scripts/verify-smart-node.sh > diagnostic-report.txt
+
+# Monitor Cintara node sync status
+watch -n 10 'curl -s http://localhost:26657/status | jq .result.sync_info'
+
+# Check AI integration health
+curl -s http://localhost:8080/health | jq .
+```
+
+### Important Notes
+- **⚠️ Testnet Software**: This is testnet software for the Cintara blockchain - use at your own risk
+- **Mnemonic Security**: Always backup your mnemonic phrase securely during node setup
+- **Hybrid Architecture**: Official Cintara node setup + containerized AI services for optimal reliability
+- **Network**: Connected to Cintara testnet (`cintara_11001-1`)
+
+**This setup provides enterprise-grade blockchain infrastructure with AI-powered monitoring specifically designed for the Cintara ecosystem.**
