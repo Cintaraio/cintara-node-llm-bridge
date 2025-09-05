@@ -12,7 +12,7 @@ cd cintara-node-llm-bridge
 # 2. Make scripts executable
 chmod +x scripts/*.sh
 
-# 3. Setup Cintara node (follow prompts)
+# 3. Setup Cintara node (follow prompts - SAVE MNEMONIC PHRASE!)
 ./scripts/setup-blockchain-node.sh
 
 # 4. Configure environment
@@ -501,7 +501,44 @@ This setup uses the [Official Cintara Testnet Script](https://github.com/Cintara
 **During setup, you'll be prompted for:**
 - **Node Name**: Enter a unique identifier (e.g., "my-smart-node")
 - **Keyring Password**: Set a secure password (8+ characters)
-- **⚠️ CRITICAL**: **Save your mnemonic phrase securely!** This is required for key recovery.
+
+#### 🚨 CRITICAL: Mnemonic Phrase Security
+
+**The setup will display a 24-word mnemonic phrase that looks like:**
+```
+word1 word2 word3 word4 word5 word6 word7 word8 word9 word10 word11 word12 word13 word14 word15 word16 word17 word18 word19 word20 word21 word22 word23 word24
+```
+
+**⚠️ IMMEDIATELY SAVE THIS MNEMONIC PHRASE:**
+
+**✅ DO THIS:**
+1. **Write it down on paper** - Store in a fireproof safe
+2. **Take a photo** - Store on an encrypted device offline
+3. **Save to password manager** - Use encrypted vault (recommended)
+4. **Create multiple copies** - Store in different secure locations
+5. **Verify you wrote it correctly** - Double-check every word
+
+**❌ NEVER DO THIS:**
+- Don't store in plain text files on your computer
+- Don't send via email or messaging apps
+- Don't store in cloud services without encryption
+- Don't share with anyone
+- Don't lose it (funds cannot be recovered!)
+
+**🔒 Why This Matters:**
+- **Only way to recover your validator** if the server fails
+- **Required for accessing any staked tokens** 
+- **Cannot be regenerated** - once lost, it's gone forever
+- **Anyone with this phrase controls your validator**
+
+**Example secure storage command during setup:**
+```bash
+# When the mnemonic appears, immediately save it
+echo "word1 word2 word3..." > ~/mnemonic_backup.txt
+chmod 600 ~/mnemonic_backup.txt
+
+# Then immediately move to secure location and delete from server
+```
 
 #### 5.5 Verify Cintara Node Installation
 
@@ -542,7 +579,7 @@ chmod +x cintara_ubuntu_node.sh
 - This is **testnet software** - use at your own risk
 - The node will sync with the Cintara testnet blockchain
 - Initial sync may take 30-60 minutes depending on network speed
-- Mnemonic phrase backup is essential for key recovery
+- **🚨 CRITICAL**: Your 24-word mnemonic phrase is the ONLY way to recover your validator keys. Write it down immediately when displayed during setup and store it securely offline. Loss of mnemonic = permanent loss of validator access!
 
 ### Step 6: Configure Environment
 
@@ -556,12 +593,19 @@ nano .env
 ```bash
 # Model configuration
 MODEL_FILE=mistral-7b-instruct.Q4_K_M.gguf
-LLM_THREADS=8
-CTX_SIZE=2048
+LLM_THREADS=4  # Set to your CPU count (4 for most systems)
+CTX_SIZE=2048  # Reduce to 1024 if you have <8GB RAM
 
 # Node connection
 NODE_URL=http://localhost:26657
 ```
+
+**💡 Resource Optimization Tips:**
+- **LLM_THREADS**: Set to your CPU count or less. Check with `nproc` command
+- **CTX_SIZE**: 
+  - 2048 (default) - for 8GB+ RAM systems
+  - 1024 - for 4-8GB RAM systems  
+  - 512 - for <4GB RAM systems (minimal)
 
 ### Step 7: Download AI Model
 
@@ -1006,6 +1050,31 @@ docker compose logs llama
 # Restart LLM service
 docker compose restart llama
 ```
+
+#### Issue: "Error response from daemon: range of CPUs is from 0.01 to X.XX, as there are only X CPUs available"
+
+**This error occurs when Docker Compose tries to allocate more CPU resources than available.**
+
+```bash
+# Check your system's CPU count
+nproc
+
+# Update your .env file with appropriate CPU settings
+echo "LLM_THREADS=$(nproc)" >> .env
+
+# For systems with 4 CPUs, use these settings:
+echo "LLM_THREADS=4" >> .env
+echo "CTX_SIZE=1024" >> .env  # Reduce if low memory
+
+# Restart services
+docker compose down
+docker compose up -d
+```
+
+**System-specific recommendations:**
+- **4 CPU cores**: `LLM_THREADS=4`, Docker limit `3.5 CPUs`
+- **8 CPU cores**: `LLM_THREADS=6`, Docker limit `7.0 CPUs`  
+- **16+ CPU cores**: `LLM_THREADS=8`, Docker limit `14.0 CPUs`
 
 #### Issue: "AI Bridge connection errors"
 ```bash
