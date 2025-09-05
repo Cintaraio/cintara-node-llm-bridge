@@ -248,6 +248,9 @@ sudo dpkg -i session-manager-plugin.deb
 
 # Connect to your instance
 aws ssm start-session --target $INSTANCE_ID --region $REGION
+
+# Once connected, switch to ubuntu user (SSM connects as ssm-user by default)
+sudo su - ubuntu
 ```
 
 #### 1.5 Configure VPC Flow Logs (Additional Security)
@@ -279,6 +282,9 @@ aws ec2 create-flow-logs \
 ### Step 2: Initial Server Hardening
 
 **Once connected via SSM, harden the server:**
+
+> **Note**: SSM Session Manager connects as `ssm-user` by default. Make sure you've switched to `ubuntu` user with `sudo su - ubuntu` before running these commands.
+
 ```bash
 # Update system
 sudo apt update && sudo apt upgrade -y
