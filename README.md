@@ -9,13 +9,32 @@ A hybrid setup that combines a Cintara blockchain testnet validator with AI-powe
 - **Ubuntu 22.04 LTS** or compatible Linux distribution  
 - **Minimum 4 vCPU cores** and **16GB RAM** for optimal performance
 - **30GB+ storage** for blockchain data, AI model, and Docker volumes
-- **Docker and Docker Compose** installed
 - **Public IP address** for P2P connectivity
 
-**Recommended Setup:**
-- AWS EC2 with SSM Session Manager for secure access
-- Security groups configured for ports 26656 (P2P), 26657 (RPC), 1317 (API)
-- EBS volume with encryption enabled
+**Software Dependencies:**
+- **Docker Engine** (20.10.0 or later)
+- **Docker Compose** (v2.0.0 or later)
+- **Git** for repository cloning
+- **wget** or **curl** for model download
+- **AWS CLI** (if using EC2 with SSM)
+
+**Network Requirements:**
+- **Outbound internet access** for downloading dependencies and AI model (~640MB)
+- **Inbound ports**: 26656 (P2P), 26657 (RPC), 1317 (API)
+- **Optional**: 8080 (AI Bridge API) for external access
+
+**AWS Recommended Setup:**
+- **EC2 Instance**: t3.xlarge (4 vCPU, 16GB RAM) with 30GB+ EBS storage
+- **Security Groups**: Configured for blockchain and API ports
+- **SSM Session Manager** for secure access (no SSH keys needed)
+- **EBS encryption** enabled for data security
+- **VPC Flow Logs** enabled for network monitoring
+
+**System Requirements (from official Cintara docs):**
+- **CPU**: 4+ cores recommended
+- **RAM**: 16GB minimum (32GB recommended for production)
+- **Storage**: 30GB+ SSD with room for blockchain growth
+- **Network**: Stable internet connection with sufficient bandwidth
 
 ## 🚀 Quick Start
 
@@ -69,14 +88,6 @@ cd ..
 - **Smart Bridge API** - AI-powered Cintara node monitoring and diagnostics
 - **Hybrid Architecture** - Reliable official node setup + containerized AI services
 - **Production Ready** - Based on official Cintara documentation and best practices
-
-## 📋 Prerequisites
-
-- **AWS EC2 Instance** with Ubuntu 22.04 (recommended) or local macOS
-- **Instance Type**: t3.large or larger (8GB+ RAM, 50GB+ storage)
-- **Docker and Docker Compose** installed
-- **Internet connection** for model download (~4GB)
-- **AWS CLI** configured (for EC2 setup)
 
 ---
 
