@@ -143,7 +143,7 @@ async def diagnose_node():
                 "temperature": 0.1,
                 "stop": ["}"]
             },
-            timeout=10
+            timeout=60
         )
         
         if r.status_code != 200:
@@ -214,7 +214,7 @@ async def analyze_transaction(req: TransactionRequest):
                 "temperature": 0.0,
                 "stop": ["}"]
             },
-            timeout=10
+            timeout=60
         )
         
         if r.status_code != 200:
@@ -360,7 +360,7 @@ async def analyze_logs():
                 "temperature": 0.1,
                 "stop": ["}"]
             },
-            timeout=25
+            timeout=60
         )
         
         if r.status_code != 200:
@@ -407,7 +407,7 @@ async def analyze_block_transactions(block_height: int):
     """Analyze transactions in a specific block"""
     try:
         # Get block data from Cintara node
-        block_response = requests.get(f"{CINTARA_NODE_URL}/block?height={block_height}", timeout=10)
+        block_response = requests.get(f"{CINTARA_NODE_URL}/block?height={block_height}", timeout=30)
         
         if block_response.status_code != 200:
             raise HTTPException(status_code=404, detail=f"Block {block_height} not found")
@@ -463,7 +463,7 @@ async def analyze_block_transactions(block_height: int):
                 "temperature": 0.1,
                 "stop": ["}"]
             },
-            timeout=10
+            timeout=60
         )
         
         if r.status_code != 200:
@@ -572,7 +572,7 @@ async def chat_with_ai(req: Request):
                 "temperature": 0.3,
                 "stop": ["\n\nUser:", "\n\nQuestion:"]
             },
-            timeout=10
+            timeout=60
         )
         
         if r.status_code != 200:
@@ -660,7 +660,7 @@ async def get_node_peers():
                 "temperature": 0.1,
                 "stop": ["}"]
             },
-            timeout=25
+            timeout=60
         )
         
         analysis = {"connectivity_health": "unknown", "summary": "Analysis unavailable"}
@@ -712,7 +712,7 @@ async def debug_llm():
                 "max_tokens": 10,
                 "temperature": 0.1
             },
-            timeout=10
+            timeout=60
         )
         
         completion_result = {
