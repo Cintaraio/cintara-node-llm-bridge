@@ -5,10 +5,10 @@ A hybrid setup that combines a Cintara blockchain testnet validator with AI-powe
 ## 📋 Prerequisites
 
 **Environment Requirements:**
-- **EC2 Instance** (recommended: t3.medium or larger) or equivalent cloud/VPS environment
-- **Ubuntu 22.04 LTS** or compatible Linux distribution
-- **Minimum 4 CPU cores** and **8GB RAM** for optimal performance
-- **20GB+ storage** for blockchain data and AI model
+- **EC2 Instance** (recommended: t3.xlarge or larger) or equivalent cloud/VPS environment
+- **Ubuntu 22.04 LTS** or compatible Linux distribution  
+- **Minimum 4 vCPU cores** and **16GB RAM** for optimal performance
+- **30GB+ storage** for blockchain data, AI model, and Docker volumes
 - **Docker and Docker Compose** installed
 - **Public IP address** for P2P connectivity
 
