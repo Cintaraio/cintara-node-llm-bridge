@@ -5,9 +5,9 @@ A hybrid setup that combines a Cintara blockchain testnet validator with AI-powe
 ## 📋 Prerequisites
 
 **Environment Requirements:**
-- **EC2 Instance** (recommended: t3.xlarge or larger) or equivalent cloud/VPS environment
+- **EC2 Instance** (recommended: c6i.xlarge or m6i.xlarge) or equivalent cloud/VPS environment
 - **Ubuntu 22.04 LTS** or compatible Linux distribution  
-- **Minimum 4 vCPU cores** and **16GB RAM** for optimal performance
+- **Minimum 4 vCPU cores** and **8GB RAM** (16GB recommended for production)
 - **30GB+ storage** for blockchain data, AI model, and Docker volumes
 - **Public IP address** for P2P connectivity
 
@@ -24,17 +24,12 @@ A hybrid setup that combines a Cintara blockchain testnet validator with AI-powe
 - **Optional**: 8080 (AI Bridge API) for external access
 
 **AWS Recommended Setup:**
-- **EC2 Instance**: t3.xlarge (4 vCPU, 16GB RAM) with 30GB+ EBS storage
+- **EC2 Instance**: c6i.xlarge (4 vCPU, 8GB RAM) or m6i.xlarge (4 vCPU, 16GB RAM) with 30GB+ EBS storage
 - **Security Groups**: Configured for blockchain and API ports
 - **SSM Session Manager** for secure access (no SSH keys needed)
 - **EBS encryption** enabled for data security
 - **VPC Flow Logs** enabled for network monitoring
-
-**System Requirements (from official Cintara docs):**
-- **CPU**: 4+ cores recommended
-- **RAM**: 16GB minimum (32GB recommended for production)
-- **Storage**: 30GB+ SSD with room for blockchain growth
-- **Network**: Stable internet connection with sufficient bandwidth
+- **Nitro System** compatible instances for enhanced security features
 
 ## 🚀 Quick Start
 
