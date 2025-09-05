@@ -49,17 +49,39 @@ cd cintara-node-llm-bridge
 # 3. Make scripts executable
 sudo chmod +x scripts/*.sh
 
-# 4. Setup Cintara node (follow prompts - SAVE MNEMONIC PHRASE!)
+# 4. Setup Cintara node (**follow prompts and SAVE MNEMONIC PHRASE!**)
 sudo ./scripts/setup-blockchain-node.sh
 
-# 4. Configure environment
-cp .env.example .env
-nano .env  # Edit MODEL_FILE and other settings
+# 5. Once the above command successfully complete, you should see the following:
+  🔍 Verifying installation...
+  ✅ Blockchain node binary installed successfully
+  ⚠️  Blockchain node not running. You may need to start it manually:
+     cintarad start --home ~/.tmp-cintarad
 
-# 5. Download AI model (~638MB)
-mkdir -p models && cd models
-wget https://huggingface.co/TinyLlama/TinyLlama-1.1B-Chat-v1.0/resolve/main/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf -O tinyllama-1.1b-chat.Q4_K_M.gguf
-cd ..
+# 6. start the cintara blockchain node.
+cd ~
+sudo mkdir data
+sudo mv .tmp-cintarad data/
+cd ~
+sudo cintarad start --home /data/.tmp-cintarad/
+
+### **At this stage, the Cintara node will begin syncing blocks. Keep this session active and open a new SSM session to run the following commands.**
+
+# 7. Configure environment
+sudo su ubuntu
+cd ~
+cd cintara-node-llm-bridge
+sudo cp .env.example .env
+sudo vi .env 
+**Edit the file to replace the Public IP ONLY.**
+
+# 8. Download AI model (~638MB)
+sudo su ubuntu
+cd ~
+cd cintara-node-llm-bridge
+sudo mkdir -p models && cd models
+sudo wget https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF/resolve/main/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf
+
 
 # 6. Start AI services
 ./scripts/start-smart-node.sh
@@ -94,7 +116,7 @@ cd ..
 
 ---
 
-## 🚀 Complete Setup Guide
+## 🚀 Complete Setup Guide (in case of issues, please read through the following detailed notes)
 
 ### Step 1: AWS EC2 Instance Setup (Recommended)
 
