@@ -33,16 +33,17 @@ A hybrid setup that combines a Cintara blockchain testnet validator with AI-powe
 
 ## 🚀 Quick Start
 
+** Please make sure all the commands below are performed as super user / sudo (sudo su ubuntu)
 ```bash
 # 1. Clone repository
-git clone https://github.com/Cintaraio/cintara-node-llm-bridge.git
+sudo git clone https://github.com/Cintaraio/cintara-node-llm-bridge.git
 cd cintara-node-llm-bridge
 
 # 2. Make scripts executable
-chmod +x scripts/*.sh
+sudo chmod +x scripts/*.sh
 
 # 3. Setup Cintara node (follow prompts - SAVE MNEMONIC PHRASE!)
-./scripts/setup-blockchain-node.sh
+sudo ./scripts/setup-blockchain-node.sh
 
 # 4. Configure environment
 cp .env.example .env
