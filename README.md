@@ -8,7 +8,7 @@ A hybrid setup that combines a Cintara blockchain testnet validator with AI-powe
 - **EC2 Instance** (recommended: c6i.xlarge or m6i.xlarge) or equivalent cloud/VPS environment
 - **Ubuntu 22.04 LTS** or compatible Linux distribution  
 - **Minimum 4 vCPU cores** and **8GB RAM** (16GB recommended for production)
-- **30GB+ storage** for blockchain data, AI model, and Docker volumes
+- **30GB (gp3) + storage** for blockchain data, AI model, and Docker volumes
 - **Public IP address** for P2P connectivity
 
 **Software Dependencies:**
@@ -38,9 +38,9 @@ A hybrid setup that combines a Cintara blockchain testnet validator with AI-powe
 ** The following instructions are tailored for AWS EC2 instances. If you’re using a different cloud provider or environment, adjust the commands as needed.
 
 ```bash
-
-# 1. Install go
-sudo snap install go --classic
+# 1. Run all commands as superuser
+  sudo su ubuntu
+  cd ~
 
 # 2. Clone repository
 sudo git clone https://github.com/Cintaraio/cintara-node-llm-bridge.git
