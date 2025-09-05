@@ -9,6 +9,51 @@ if [[ ! -f /etc/lsb-release ]] || ! grep -q "Ubuntu" /etc/lsb-release; then
     exit 1
 fi
 
+# Install Go if not already installed
+echo "🔍 Checking Go installation..."
+if ! command -v go &> /dev/null || [[ "$(go version | awk '{print $3}' | sed 's/go//')" < "1.19" ]]; then
+    echo "📥 Installing Go 1.21.6 (required for Cintara blockchain)..."
+    
+    # Download Go
+    cd /tmp
+    wget -q https://go.dev/dl/go1.21.6.linux-amd64.tar.gz
+    
+    if [ $? -ne 0 ]; then
+        echo "❌ Failed to download Go. Please check your internet connection."
+        exit 1
+    fi
+    
+    # Remove existing Go installation and install new version
+    sudo rm -rf /usr/local/go
+    sudo tar -C /usr/local -xzf go1.21.6.linux-amd64.tar.gz
+    
+    # Add Go to PATH for current session and bashrc
+    export PATH=$PATH:/usr/local/go/bin
+    export GOPATH=$HOME/go
+    export PATH=$PATH:$GOPATH/bin
+    
+    # Add to bashrc for persistent configuration
+    if ! grep -q "/usr/local/go/bin" ~/.bashrc; then
+        echo 'export PATH=$PATH:/usr/local/go/bin' >> ~/.bashrc
+    fi
+    if ! grep -q "GOPATH=\$HOME/go" ~/.bashrc; then
+        echo 'export GOPATH=$HOME/go' >> ~/.bashrc
+        echo 'export PATH=$PATH:$GOPATH/bin' >> ~/.bashrc
+    fi
+    
+    # Verify Go installation
+    if /usr/local/go/bin/go version &> /dev/null; then
+        echo "✅ Go $(go version | awk '{print $3}') installed successfully"
+        # Clean up downloaded file
+        rm -f /tmp/go1.21.6.linux-amd64.tar.gz
+    else
+        echo "❌ Go installation failed. Please install Go manually."
+        exit 1
+    fi
+else
+    echo "✅ Go $(go version | awk '{print $3}') already installed"
+fi
+
 # Create blockchain node directory if it doesn't exist
 BLOCKCHAIN_DIR="$HOME/blockchain-node"
 if [ ! -d "$BLOCKCHAIN_DIR" ]; then
