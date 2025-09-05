@@ -33,16 +33,23 @@ A hybrid setup that combines a Cintara blockchain testnet validator with AI-powe
 
 ## 🚀 Quick Start
 
-** Please make sure all the commands below are performed as super user / sudo (sudo su ubuntu)
+## Please Note:
+** Run all commands as superuser (e.g., sudo su ubuntu).
+** The following instructions are tailored for AWS EC2 instances. If you’re using a different cloud provider or environment, adjust the commands as needed.
+
 ```bash
-# 1. Clone repository
+
+# 1. Install go
+sudo snap install go --classic
+
+# 2. Clone repository
 sudo git clone https://github.com/Cintaraio/cintara-node-llm-bridge.git
 cd cintara-node-llm-bridge
 
-# 2. Make scripts executable
+# 3. Make scripts executable
 sudo chmod +x scripts/*.sh
 
-# 3. Setup Cintara node (follow prompts - SAVE MNEMONIC PHRASE!)
+# 4. Setup Cintara node (follow prompts - SAVE MNEMONIC PHRASE!)
 sudo ./scripts/setup-blockchain-node.sh
 
 # 4. Configure environment
