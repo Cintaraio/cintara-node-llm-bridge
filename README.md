@@ -2,6 +2,39 @@
 
 A hybrid setup that combines a Cintara blockchain testnet validator with AI-powered analysis capabilities using LLM integration. This setup uses the [official Cintara testnet script](https://github.com/Cintaraio/cintara-testnet-script) for maximum reliability.
 
+## 🚀 Quick Start
+
+```bash
+# 1. Clone repository
+git clone https://github.com/Cintaraio/cintara-node-llm-bridge.git
+cd cintara-node-llm-bridge
+
+# 2. Make scripts executable
+chmod +x scripts/*.sh
+
+# 3. Setup Cintara node (follow prompts)
+./scripts/setup-blockchain-node.sh
+
+# 4. Configure environment
+cp .env.example .env
+nano .env  # Edit MODEL_FILE and other settings
+
+# 5. Download AI model (~4GB)
+mkdir -p models && cd models
+wget https://huggingface.co/TheBloke/Mistral-7B-Instruct-v0.2-GGUF/resolve/main/mistral-7b-instruct-v0.2.Q4_K_M.gguf -O mistral-7b-instruct.Q4_K_M.gguf
+cd ..
+
+# 6. Start AI services
+./scripts/start-smart-node.sh
+
+# 7. Verify everything works
+./scripts/verify-smart-node.sh
+```
+
+**🎯 Result**: Smart Cintara Node with AI capabilities running on:
+- **Cintara Node**: `http://localhost:26657` (RPC) + `http://localhost:1317` (API)
+- **AI Bridge**: `http://localhost:8080` (AI-powered blockchain analysis)
+
 ## 🏗️ Architecture Overview
 
 ```
@@ -396,16 +429,37 @@ docker-compose --version
 brew install --cask docker
 ```
 
-### Step 4: Clone Repository and Setup
+### Step 4: Clone Smart Cintara Node Repository
 
-**Clone the repository on your EC2 instance:**
+**Clone the Smart Cintara Node with AI Integration repository:**
 ```bash
-# Clone repository
-git clone <repository-url> smart-blockchain-node
-cd smart-blockchain-node
+# Clone the official Smart Cintara Node repository
+git clone https://github.com/Cintaraio/cintara-node-llm-bridge.git
+cd cintara-node-llm-bridge
 
 # Make scripts executable
 chmod +x scripts/*.sh
+
+# Verify repository contents
+ls -la
+```
+
+**Repository contents:**
+```
+cintara-node-llm-bridge/
+├── README.md                    # Complete setup guide
+├── docker-compose.yml           # LLM + AI Bridge services
+├── .env.example                 # Environment configuration template
+├── bridge/                      # AI Bridge FastAPI application
+│   ├── app.py                   # Main AI bridge server
+│   ├── Dockerfile               # Container configuration
+│   └── requirements.txt         # Python dependencies
+├── scripts/                     # Automated setup scripts
+│   ├── setup-blockchain-node.sh    # Cintara node setup
+│   ├── start-smart-node.sh         # Unified startup
+│   ├── verify-smart-node.sh        # Comprehensive testing
+│   └── test-llm-functionality.sh   # LLM-specific tests
+└── models/                      # AI model directory (created during setup)
 ```
 
 ### Step 5: Setup Cintara Blockchain Node
@@ -995,32 +1049,34 @@ time curl -s http://localhost:26657/status
 ## 📁 Repository Structure
 
 ```
-smart-blockchain-node/
-├── README.md                    # This file
-├── docker-compose.yml           # LLM + Bridge services
-├── .env.example                 # Environment template
+cintara-node-llm-bridge/         # https://github.com/Cintaraio/cintara-node-llm-bridge
+├── README.md                    # Complete setup and usage guide
+├── docker-compose.yml           # LLM + AI Bridge services configuration
+├── .env.example                 # Environment variables template
 ├── bridge/                      # AI Bridge FastAPI application
-│   ├── app.py
-│   ├── Dockerfile
-│   └── requirements.txt
-├── scripts/                     # Management scripts
-│   ├── setup-blockchain-node.sh    # Node setup automation
-│   ├── start-smart-node.sh         # Unified startup
-│   ├── verify-smart-node.sh        # Comprehensive testing
-│   └── test-llm-functionality.sh   # LLM-specific tests
-└── models/                      # AI model files (.gguf)
+│   ├── app.py                   # Main AI bridge server with Cintara integration
+│   ├── Dockerfile               # Container configuration
+│   └── requirements.txt         # Python dependencies
+├── scripts/                     # Automated setup and management scripts
+│   ├── setup-blockchain-node.sh    # Cintara node setup (uses official script)
+│   ├── start-smart-node.sh         # Unified startup for all services
+│   ├── verify-smart-node.sh        # Comprehensive 5-phase testing
+│   └── test-llm-functionality.sh   # LLM-specific functionality tests
+└── models/                      # AI model files directory (.gguf files)
 ```
 
 ---
 
-## 🎯 Benefits of Hybrid Approach
+## 🎯 Benefits of Smart Cintara Node Approach
 
-✅ **Reliable Blockchain Node** - Uses official scripts, guaranteed compatibility  
-✅ **Simplified Docker** - Only AI components, easier to debug  
-✅ **Better Performance** - Node runs natively on host system  
-✅ **Easy Updates** - Update blockchain and AI components independently  
-✅ **Clear Separation** - Blockchain vs AI concerns properly separated  
-✅ **Production Ready** - Manual node setup for mission-critical operations
+✅ **Official Cintara Integration** - Uses official Cintara testnet scripts for guaranteed compatibility  
+✅ **Simplified AI Services** - Only AI components in Docker, easier to debug and manage  
+✅ **Superior Performance** - Cintara node runs natively on host for optimal blockchain performance  
+✅ **Independent Updates** - Update Cintara node and AI components separately  
+✅ **Clear Architecture** - Blockchain and AI concerns properly separated for maintainability  
+✅ **Production Ready** - Enterprise-grade AWS security + proven Cintara node setup  
+✅ **AI-Enhanced Monitoring** - Intelligent analysis specifically designed for Cintara blockchain  
+✅ **Open Source** - Available at [github.com/Cintaraio/cintara-node-llm-bridge](https://github.com/Cintaraio/cintara-node-llm-bridge)
 
 ---
 
