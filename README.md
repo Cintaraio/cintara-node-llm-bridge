@@ -2,6 +2,21 @@
 
 A hybrid setup that combines a Cintara blockchain testnet validator with AI-powered analysis capabilities using LLM integration. This setup uses the [official Cintara testnet script](https://github.com/Cintaraio/cintara-testnet-script) for maximum reliability.
 
+## 📋 Prerequisites
+
+**Environment Requirements:**
+- **EC2 Instance** (recommended: t3.medium or larger) or equivalent cloud/VPS environment
+- **Ubuntu 22.04 LTS** or compatible Linux distribution
+- **Minimum 4 CPU cores** and **8GB RAM** for optimal performance
+- **20GB+ storage** for blockchain data and AI model
+- **Docker and Docker Compose** installed
+- **Public IP address** for P2P connectivity
+
+**Recommended Setup:**
+- AWS EC2 with SSM Session Manager for secure access
+- Security groups configured for ports 26656 (P2P), 26657 (RPC), 1317 (API)
+- EBS volume with encryption enabled
+
 ## 🚀 Quick Start
 
 ```bash
