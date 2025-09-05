@@ -6,11 +6,13 @@ services:
     restart: unless-stopped
     command: [
       "--model", "/models/${MODEL_FILE:-mistral-7b-instruct.Q4_K_M.gguf}",
-      "--ctx-size", "${CTX_SIZE:-2048}",
+      "--ctx-size", "${CTX_SIZE:-1024}",
       "--threads", "${LLM_THREADS:-4}",
       "--host", "0.0.0.0",
       "--port", "8000",
-      "--n-predict", "512"
+      "--n-predict", "256",
+      "--batch-size", "512",
+      "--memory-f32"
     ]
     volumes:
       - ./models:/models:ro
@@ -26,8 +28,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '3.5'  # Use 3.5 out of 4 CPUs, leave some for system
-          memory: 6G   # Reduced memory allocation
+          cpus: '3.0'  # Use 3.0 out of 4 CPUs, leave more for system
+          memory: 4G   # Further reduced memory allocation
         reservations:
           cpus: '2.0'  # Reserve at least 2 CPUs
           memory: 4G
