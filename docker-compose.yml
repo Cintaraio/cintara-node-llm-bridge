@@ -37,26 +37,17 @@ services:
     build: ./bridge
     container_name: cintara-ai-bridge
     restart: unless-stopped
+    network_mode: "host"  # Use host networking for better connectivity to host services
     environment:
-      - LLAMA_SERVER_URL=http://llama:8000
-      - CINTARA_NODE_URL=http://host.docker.internal:26657  # Connect to host node
+      - LLAMA_SERVER_URL=http://localhost:8000
+      - CINTARA_NODE_URL=http://localhost:26657  # Connect to host node via localhost
       - LOG_PATH=/app/logs
       - AI_FEATURES_ENABLED=true
     depends_on:
       llama:
         condition: service_healthy
-    ports:
-      - "8080:8080"  # AI Bridge API
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:8080/health > /dev/null || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
-    deploy:
-      resources:
-        limits:
-          cpus: '0.5'  # Bridge needs minimal CPU
-          memory: 1G
-        reservations:
-          cpus: '0.1'
-          memory: 256M

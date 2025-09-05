@@ -1076,18 +1076,41 @@ docker compose up -d
 - **8 CPU cores**: `LLM_THREADS=6`, Docker limit `7.0 CPUs`  
 - **16+ CPU cores**: `LLM_THREADS=8`, Docker limit `14.0 CPUs`
 
-#### Issue: "AI Bridge connection errors"
+#### Issue: "AI Bridge shows blockchain_node: down"
+
+**Symptoms:**
+```json
+{"status":"degraded","components":{"llm_server":"ok","blockchain_node":"down"}}
+```
+
+**This means the AI Bridge can't connect to the Cintara node.**
+
 ```bash
-# Check bridge logs
+# 1. Verify Cintara node is actually running
+curl http://localhost:26657/status | jq .sync_info
+
+# 2. Check if node is listening on correct interface
+sudo netstat -tlnp | grep :26657
+
+# 3. Check bridge logs for connection errors
 docker compose logs bridge
 
-# Test connectivity
-docker compose exec bridge curl -s http://llama:8000/health
-docker compose exec bridge curl -s http://host.docker.internal:26657/status
+# 4. Test bridge connectivity to node
+docker compose exec bridge curl -v http://localhost:26657/status
 
-# Restart bridge
+# 5. Restart bridge service
 docker compose restart bridge
+
+# 6. If still failing, recreate services
+docker compose down
+docker compose up -d
 ```
+
+**Root causes:**
+- Cintara node not running or crashed
+- Node listening only on 127.0.0.1 instead of 0.0.0.0
+- Firewall blocking local connections
+- Docker networking issues
 
 ### Complete Recovery
 
