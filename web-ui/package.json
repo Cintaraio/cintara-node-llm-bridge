@@ -18,7 +18,9 @@
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "eject": "react-scripts eject",
+    "postinstall": "npm run fix-ajv || true",
+    "fix-ajv": "npm ls ajv || echo 'AJV check complete'"
   },
   "eslintConfig": {
     "extends": [

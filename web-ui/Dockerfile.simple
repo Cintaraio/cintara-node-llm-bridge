@@ -1,0 +1,18 @@
+# Simple static HTML approach that will always work
+FROM nginx:alpine
+
+# Copy a simple HTML file that will work without build issues
+COPY simple-ui.html /usr/share/nginx/html/index.html
+
+# Copy custom nginx configuration
+COPY nginx.conf /etc/nginx/nginx.conf
+
+# Add health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD wget -q --spider http://localhost:3000/health || exit 1
+
+# Expose port
+EXPOSE 3000
+
+# Start nginx
+CMD ["nginx", "-g", "daemon off;"]
