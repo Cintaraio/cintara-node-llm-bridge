@@ -1,16 +1,16 @@
 services:
-  # LLM Server (CPU-based with llama.cpp)
+  # LLM Server (CPU-based with llama.cpp) - Low Resource Version
   llama:
     image: ${LLAMA_REPO:-ghcr.io/ggerganov/llama.cpp:server}@${LLAMA_DIGEST:-sha256:42d562e394e22fc1b05d6f0ee9179b276b80a115217c8d668dc8c2fc5b1302ac}
     container_name: cintara-llm
     restart: unless-stopped
     command: [
       "--model", "/models/${MODEL_FILE:-tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf}",
-      "--ctx-size", "${CTX_SIZE:-1024}",
-      "--threads", "${LLM_THREADS:-4}",
+      "--ctx-size", "512",  # Reduced context size for lower memory
+      "--threads", "2",     # Reduced threads
       "--host", "0.0.0.0",
       "--port", "8000",
-      "--n-predict", "256",
+      "--n-predict", "128", # Reduced prediction length
       "--verbose"
     ]
     volumes:
@@ -22,27 +22,20 @@ services:
       interval: 60s
       timeout: 30s
       retries: 5
-      start_period: 120s
+      start_period: 180s  # Longer startup time
     ports:
-      - "8000:8000"  # LLM API port
-    deploy:
-      resources:
-        limits:
-          cpus: '1.5'  # Reduced CPU limit for better compatibility
-          memory: 2G   # Reduced memory allocation
-        reservations:
-          cpus: '0.5'  # Minimal CPU reservation
-          memory: 1G   # Minimal memory reservation
+      - "8000:8000"
+    # No resource limits for maximum compatibility
 
   # AI Bridge - Connects to host Cintara node
   bridge:
     build: ./bridge
     container_name: cintara-ai-bridge
     restart: unless-stopped
-    network_mode: "host"  # Use host networking for better connectivity to host services
+    network_mode: "host"
     environment:
       - LLAMA_SERVER_URL=http://localhost:8000
-      - CINTARA_NODE_URL=http://localhost:26657  # Connect to host node via localhost
+      - CINTARA_NODE_URL=http://localhost:26657
       - LOG_PATH=/app/logs
       - AI_FEATURES_ENABLED=true
     depends_on:
@@ -71,26 +64,3 @@ services:
       timeout: 10s
       retries: 3
       start_period: 10s
-
-  # React Web UI - Advanced interface (only if build issues are resolved)
-  web-ui-react:
-    build: 
-      context: ./web-ui
-      dockerfile: Dockerfile
-    container_name: cintara-web-ui-react
-    restart: unless-stopped
-    network_mode: "host"
-    environment:
-      - REACT_APP_API_URL=http://localhost:8080
-      - NODE_ENV=production
-    depends_on:
-      bridge:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD-SHELL", "wget -q --spider http://localhost:3000/health || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
-    profiles:
-      - react
