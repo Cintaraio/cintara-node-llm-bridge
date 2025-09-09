@@ -12,7 +12,7 @@
     "react-scripts": "5.0.1",
     "axios": "^1.4.0",
     "styled-components": "^5.3.11",
-    "react-json-view": "^1.21.3",
+    "react18-json-view": "^0.2.8",
     "lucide-react": "^0.244.0"
   },
   "scripts": {

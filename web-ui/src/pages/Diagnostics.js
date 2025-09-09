@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { useApi } from '../context/ApiContext';
 import StatusCard from '../components/StatusCard';
-import ReactJsonView from 'react-json-view';
+import JsonView from 'react18-json-view';
+import 'react18-json-view/src/style.css';
 import { 
   RefreshCw, 
   AlertTriangle, 
@@ -210,7 +211,7 @@ const JsonContainer = styled.div`
   max-height: 400px;
   overflow: auto;
 
-  .react-json-view {
+  .json-view {
     background-color: transparent !important;
   }
 `;
@@ -552,13 +553,10 @@ const Diagnostics = () => {
               <div>
                 <h4 style={{ color: '#f0f6fc', marginBottom: '0.5rem' }}>Recent Log Sample:</h4>
                 <JsonContainer>
-                  <ReactJsonView 
+                  <JsonView 
                     src={logsData.log_sample} 
-                    theme="monokai"
+                    dark={true}
                     collapsed={2}
-                    displayDataTypes={false}
-                    displayObjectSize={false}
-                    enableClipboard={false}
                   />
                 </JsonContainer>
               </div>
@@ -652,13 +650,10 @@ const Diagnostics = () => {
             
             {debugData && (
               <JsonContainer>
-                <ReactJsonView 
+                <JsonView 
                   src={debugData} 
-                  theme="monokai"
+                  dark={true}
                   collapsed={1}
-                  displayDataTypes={false}
-                  displayObjectSize={false}
-                  enableClipboard={true}
                 />
               </JsonContainer>
             )}
