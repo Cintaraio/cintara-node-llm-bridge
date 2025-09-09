@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { useApi } from '../context/ApiContext';
 import StatusCard from '../components/StatusCard';
-import JsonView from 'react18-json-view';
-import 'react18-json-view/src/style.css';
+// import JsonView from 'react18-json-view';
+// import 'react18-json-view/src/style.css';
 import { 
   RefreshCw, 
   AlertTriangle, 
@@ -203,17 +203,18 @@ const LoadingSpinner = styled.div`
   }
 `;
 
-const JsonContainer = styled.div`
+const JsonContainer = styled.pre`
   background: #0d1117;
   border: 1px solid #21262d;
   border-radius: 6px;
   padding: 1rem;
   max-height: 400px;
   overflow: auto;
-
-  .json-view {
-    background-color: transparent !important;
-  }
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  color: #e1e4e8;
+  font-family: 'Courier New', monospace;
+  font-size: 0.875rem;
 `;
 
 const TabContainer = styled.div`
@@ -553,11 +554,7 @@ const Diagnostics = () => {
               <div>
                 <h4 style={{ color: '#f0f6fc', marginBottom: '0.5rem' }}>Recent Log Sample:</h4>
                 <JsonContainer>
-                  <JsonView 
-                    src={logsData.log_sample} 
-                    dark={true}
-                    collapsed={2}
-                  />
+                  {JSON.stringify(logsData.log_sample, null, 2)}
                 </JsonContainer>
               </div>
             )}
@@ -650,11 +647,7 @@ const Diagnostics = () => {
             
             {debugData && (
               <JsonContainer>
-                <JsonView 
-                  src={debugData} 
-                  dark={true}
-                  collapsed={1}
-                />
+                {JSON.stringify(debugData, null, 2)}
               </JsonContainer>
             )}
           </DiagnosticSection>
