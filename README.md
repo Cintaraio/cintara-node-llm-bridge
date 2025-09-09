@@ -116,7 +116,7 @@ sudo ./scripts/start-smart-node.sh
 **🎯 Result**: Smart Cintara Node with AI capabilities running on:
 - **Cintara Node**: `http://localhost:26657` (RPC) + `http://localhost:1317` (API)
 - **AI Bridge**: `http://localhost:8080` (AI-powered blockchain analysis)
-- **Web UI**: `http://localhost:3000` (Management interface with chat, monitoring, and diagnostics)
+- **Web UI**: `http://localhost:3000` (Reliable HTML interface with chat, monitoring, and diagnostics)
 
 ## 🌐 **Accessing the Web UI from Browser**
 
@@ -175,7 +175,7 @@ In case of issues or if troubleshooting is required, refer to the detailed steps
 - **Cintara Testnet Node** - Official testnet validator using proven setup scripts
 - **AI/LLM Integration** - CPU-based TinyLlama 1.1B model for intelligent blockchain analysis
 - **Smart Bridge API** - AI-powered Cintara node monitoring and diagnostics
-- **Web Management Interface** - Modern React-based UI with chat, monitoring, and diagnostics
+- **Web Management Interface** - Reliable HTML interface with chat, monitoring, and diagnostics
 - **Hybrid Architecture** - Reliable official node setup + containerized AI services
 - **Production Ready** - Based on official Cintara documentation and best practices
 

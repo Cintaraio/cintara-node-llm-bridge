@@ -54,14 +54,32 @@ services:
       timeout: 10s
       retries: 3
 
-  # Web UI - React-based management interface
+  # Web UI - Simple HTML interface (reliable, no build issues)
   web-ui:
+    build:
+      context: ./web-ui  
+      dockerfile: Dockerfile.simple
+    container_name: cintara-web-ui
+    restart: unless-stopped
+    network_mode: "host"
+    depends_on:
+      bridge:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:3000/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # React Web UI - Advanced interface (only if build issues are resolved)
+  web-ui-react:
     build: 
       context: ./web-ui
       dockerfile: Dockerfile
-    container_name: cintara-web-ui
+    container_name: cintara-web-ui-react
     restart: unless-stopped
-    network_mode: "host"  # Use host networking to access bridge service
+    network_mode: "host"
     environment:
       - REACT_APP_API_URL=http://localhost:8080
       - NODE_ENV=production
@@ -74,23 +92,5 @@ services:
       timeout: 10s
       retries: 3
       start_period: 30s
-
-  # Simple Web UI - Fallback option that always works
-  web-ui-simple:
-    build:
-      context: ./web-ui  
-      dockerfile: Dockerfile.simple
-    container_name: cintara-web-ui-simple
-    restart: unless-stopped
-    network_mode: "host"
-    depends_on:
-      bridge:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD-SHELL", "wget -q --spider http://localhost:3000/health || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
     profiles:
-      - simple
+      - react
