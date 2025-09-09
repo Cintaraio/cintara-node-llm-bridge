@@ -21,7 +21,7 @@ A hybrid setup that combines a Cintara blockchain testnet validator with AI-powe
 **Network Requirements:**
 - **Outbound internet access** for downloading dependencies and AI model (~640MB)
 - **Inbound ports**: 26656 (P2P), 26657 (RPC), 1317 (API)
-- **Optional**: 8080 (AI Bridge API) for external access
+- **Optional**: 8080 (AI Bridge API), 3000 (Web UI) for external access
 
 **AWS Recommended Setup:**
 - **EC2 Instance**: c6i.xlarge (4 vCPU, 8GB RAM) or m6i.xlarge (4 vCPU, 16GB RAM) with 30GB+ EBS storage
@@ -106,6 +106,9 @@ sudo ./scripts/start-smart-node.sh
   
   # 10.4 Test AI bridge
   curl http://localhost:8080/health
+  
+  # 10.5 Test Web UI
+  curl http://localhost:3000/health
 
 # 11 Visit https://testnet.cintara.io/nodes and confirm that the Cintara node name you configured appears in the node list.
 
@@ -113,6 +116,41 @@ sudo ./scripts/start-smart-node.sh
 **🎯 Result**: Smart Cintara Node with AI capabilities running on:
 - **Cintara Node**: `http://localhost:26657` (RPC) + `http://localhost:1317` (API)
 - **AI Bridge**: `http://localhost:8080` (AI-powered blockchain analysis)
+- **Web UI**: `http://localhost:3000` (Management interface with chat, monitoring, and diagnostics)
+
+## 🌐 **Accessing the Web UI from Browser**
+
+### **Local Access** (same machine):
+```
+http://localhost:3000
+```
+
+### **Remote Access** (EC2 with public IP):
+1. **Get your EC2 public IP**: 
+   ```bash
+   curl -s ifconfig.me
+   ```
+
+2. **Access via browser**:
+   ```
+   http://YOUR_EC2_PUBLIC_IP:3000
+   ```
+   
+3. **Security Note**: Port 3000 is restricted to your IP address only for security. If you need to access from a different location, update the security group to allow your current IP.
+
+### **Update Security Group for New IP** (if needed):
+```bash
+# Get your current IP
+NEW_IP=$(curl -s ifconfig.me)
+
+# Update security group rule
+aws ec2 authorize-security-group-ingress \
+  --group-id $SG_ID \
+  --protocol tcp \
+  --port 3000 \
+  --cidr $NEW_IP/32 \
+  --region $REGION
+```
 
 
 **If all four tests return OK or valid responses, the Cintara Node, LLM, and bridge are running successfully.
@@ -123,13 +161,13 @@ In case of issues or if troubleshooting is required, refer to the detailed steps
 ## 🏗️ Architecture Overview
 
 ```
-┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│   Cintara Node  │    │   LLM Server     │    │   AI Bridge     │
-│   (Official)    │◄───┤   (Docker)       │◄───┤   (Docker)      │
-│   Port: 26657   │    │   Port: 8000     │    │   Port: 8080    │
-│   Chain: cintara│    │   TinyLlama 1B   │    │   FastAPI       │
-│   _11001-1      │    │                  │    │                 │
-└─────────────────┘    └──────────────────┘    └─────────────────┘
+┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   Cintara Node  │    │   LLM Server     │    │   AI Bridge     │    │   Web UI        │
+│   (Official)    │◄───┤   (Docker)       │◄───┤   (Docker)      │◄───┤   (Docker)      │
+│   Port: 26657   │    │   Port: 8000     │    │   Port: 8080    │    │   Port: 3000    │
+│   Chain: cintara│    │   TinyLlama 1B   │    │   FastAPI       │    │   React+Nginx   │
+│   _11001-1      │    │                  │    │                 │    │                 │
+└─────────────────┘    └──────────────────┘    └─────────────────┘    └─────────────────┘
 ```
 
 ## 🎯 What You Get
@@ -137,6 +175,7 @@ In case of issues or if troubleshooting is required, refer to the detailed steps
 - **Cintara Testnet Node** - Official testnet validator using proven setup scripts
 - **AI/LLM Integration** - CPU-based TinyLlama 1.1B model for intelligent blockchain analysis
 - **Smart Bridge API** - AI-powered Cintara node monitoring and diagnostics
+- **Web Management Interface** - Modern React-based UI with chat, monitoring, and diagnostics
 - **Hybrid Architecture** - Reliable official node setup + containerized AI services
 - **Production Ready** - Based on official Cintara documentation and best practices
 
@@ -191,6 +230,14 @@ aws ec2 authorize-security-group-ingress \
   --group-id $SG_ID \
   --protocol tcp \
   --port 8080 \
+  --cidr $YOUR_IP/32 \
+  --region $REGION
+
+# Allow Web UI (3000) only from your IP
+aws ec2 authorize-security-group-ingress \
+  --group-id $SG_ID \
+  --protocol tcp \
+  --port 3000 \
   --cidr $YOUR_IP/32 \
   --region $REGION
 
@@ -358,6 +405,7 @@ sudo ufw default allow outgoing
 sudo ufw allow 26656/tcp comment 'Blockchain P2P'
 sudo ufw allow from $YOUR_IP to any port 26657 comment 'RPC access'
 sudo ufw allow from $YOUR_IP to any port 8080 comment 'AI Bridge'
+sudo ufw allow from $YOUR_IP to any port 3000 comment 'Web UI'
 sudo ufw --force enable
 
 # Configure fail2ban
@@ -841,6 +889,7 @@ curl -s http://localhost:8080/node/transactions/$LATEST_BLOCK | jq .
 | **Cintara P2P** | 26656 | Peer-to-peer network connections |
 | **Smart Bridge** | 8080 | AI-enhanced Cintara monitoring API |
 | **LLM Server** | 8000 | Internal AI model server (TinyLlama 1.1B) |
+| **Web UI** | 3000 | React-based management interface |
 
 ---
 
