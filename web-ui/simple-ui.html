@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cintara Node Management</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #0a0b0f;
+            color: #e1e4e8;
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 3rem;
+        }
+        
+        .header h1 {
+            font-size: 2.5rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            background: linear-gradient(45deg, #58a6ff, #79c0ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .header p {
+            color: #7d8590;
+            font-size: 1.1rem;
+        }
+        
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        
+        .card {
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 8px;
+            padding: 1.5rem;
+            transition: border-color 0.2s ease;
+        }
+        
+        .card:hover {
+            border-color: #58a6ff;
+        }
+        
+        .card h3 {
+            font-size: 1.25rem;
+            margin-bottom: 1rem;
+            color: #f0f6fc;
+        }
+        
+        .status {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 12px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            margin-bottom: 1rem;
+        }
+        
+        .status.loading {
+            background: #7c2d12;
+            color: #fbbf24;
+        }
+        
+        .status.healthy {
+            background: #1a472a;
+            color: #4ade80;
+        }
+        
+        .status.error {
+            background: #7f1d1d;
+            color: #f87171;
+        }
+        
+        .metrics {
+            display: grid;
+            gap: 0.5rem;
+        }
+        
+        .metric {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.5rem;
+            background: #0d1117;
+            border-radius: 4px;
+            border: 1px solid #21262d;
+        }
+        
+        .metric-label {
+            color: #7d8590;
+        }
+        
+        .metric-value {
+            color: #f0f6fc;
+            font-weight: 600;
+        }
+        
+        .chat-section {
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        
+        .chat-input {
+            display: flex;
+            gap: 0.75rem;
+            margin-top: 1rem;
+        }
+        
+        .chat-input input {
+            flex: 1;
+            background: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            padding: 0.75rem;
+            color: #f0f6fc;
+        }
+        
+        .chat-input input:focus {
+            outline: none;
+            border-color: #58a6ff;
+        }
+        
+        .btn {
+            background: #238636;
+            border: 1px solid #238636;
+            border-radius: 6px;
+            padding: 0.75rem 1rem;
+            color: white;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .btn:hover {
+            background: #2ea043;
+            border-color: #2ea043;
+        }
+        
+        .btn:disabled {
+            background: #30363d;
+            border-color: #30363d;
+            cursor: not-allowed;
+            opacity: 0.5;
+        }
+        
+        .response {
+            margin-top: 1rem;
+            padding: 1rem;
+            background: #0d1117;
+            border: 1px solid #21262d;
+            border-radius: 6px;
+            white-space: pre-wrap;
+        }
+        
+        .endpoints {
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 8px;
+            padding: 1.5rem;
+        }
+        
+        .endpoint {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem;
+            background: #0d1117;
+            border: 1px solid #21262d;
+            border-radius: 4px;
+            margin-bottom: 0.5rem;
+        }
+        
+        .endpoint:last-child {
+            margin-bottom: 0;
+        }
+        
+        .endpoint-url {
+            font-family: monospace;
+            color: #79c0ff;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 Cintara Node Management</h1>
+            <p>AI-Powered Blockchain Node Monitoring & Management</p>
+        </div>
+
+        <div class="grid">
+            <div class="card">
+                <h3>System Health</h3>
+                <span class="status loading" id="system-status">Loading...</span>
+                <div class="metrics" id="system-metrics">
+                    <div class="metric">
+                        <span class="metric-label">LLM Server</span>
+                        <span class="metric-value" id="llm-status">Checking...</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">AI Bridge</span>
+                        <span class="metric-value" id="bridge-status">Checking...</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Blockchain Node</span>
+                        <span class="metric-value" id="node-status">Checking...</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>Node Status</h3>
+                <span class="status loading" id="node-health-status">Loading...</span>
+                <div class="metrics" id="node-metrics">
+                    <div class="metric">
+                        <span class="metric-label">Block Height</span>
+                        <span class="metric-value" id="block-height">-</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Catching Up</span>
+                        <span class="metric-value" id="catching-up">-</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Peers</span>
+                        <span class="metric-value" id="peer-count">-</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="chat-section">
+            <h3>💬 AI Assistant</h3>
+            <p style="color: #7d8590; margin-bottom: 1rem;">Ask questions about your Cintara node status and performance</p>
+            <div class="chat-input">
+                <input type="text" id="chat-input" placeholder="Ask about your node status, performance, or any blockchain questions..." />
+                <button class="btn" onclick="sendMessage()">Send</button>
+            </div>
+            <div class="response" id="chat-response" style="display: none;"></div>
+        </div>
+
+        <div class="endpoints">
+            <h3>🔗 API Endpoints</h3>
+            <div class="endpoint">
+                <span>Cintara Node RPC</span>
+                <span class="endpoint-url">http://localhost:26657</span>
+            </div>
+            <div class="endpoint">
+                <span>AI Bridge API</span>
+                <span class="endpoint-url">http://localhost:8080</span>
+            </div>
+            <div class="endpoint">
+                <span>LLM Server</span>
+                <span class="endpoint-url">http://localhost:8000</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Health check functions
+        async function checkHealth() {
+            try {
+                const response = await fetch('/api/health');
+                const data = await response.json();
+                
+                document.getElementById('system-status').textContent = data.status;
+                document.getElementById('system-status').className = `status ${data.status === 'ok' ? 'healthy' : 'error'}`;
+                
+                document.getElementById('llm-status').textContent = data.components.llm_server;
+                document.getElementById('bridge-status').textContent = data.components.blockchain_node;
+                document.getElementById('node-status').textContent = data.components.blockchain_node;
+            } catch (error) {
+                document.getElementById('system-status').textContent = 'Error';
+                document.getElementById('system-status').className = 'status error';
+            }
+        }
+
+        async function checkNodeStatus() {
+            try {
+                const response = await fetch('/api/node/status');
+                const data = await response.json();
+                
+                document.getElementById('node-health-status').textContent = data.status;
+                document.getElementById('node-health-status').className = `status ${data.status === 'healthy' ? 'healthy' : 'error'}`;
+                
+                if (data.details) {
+                    document.getElementById('block-height').textContent = data.details.latest_block_height || '0';
+                    document.getElementById('catching-up').textContent = data.details.catching_up ? 'Yes' : 'No';
+                }
+            } catch (error) {
+                document.getElementById('node-health-status').textContent = 'Error';
+                document.getElementById('node-health-status').className = 'status error';
+            }
+        }
+
+        async function checkPeers() {
+            try {
+                const response = await fetch('/api/node/peers');
+                const data = await response.json();
+                document.getElementById('peer-count').textContent = data.total_peers || '0';
+            } catch (error) {
+                document.getElementById('peer-count').textContent = 'Error';
+            }
+        }
+
+        // Chat function
+        async function sendMessage() {
+            const input = document.getElementById('chat-input');
+            const responseDiv = document.getElementById('chat-response');
+            const message = input.value.trim();
+            
+            if (!message) return;
+            
+            responseDiv.style.display = 'block';
+            responseDiv.textContent = 'Thinking...';
+            input.value = '';
+            
+            try {
+                const response = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ message: message })
+                });
+                
+                const data = await response.json();
+                responseDiv.textContent = `You: ${message}\n\nAI: ${data.response}`;
+            } catch (error) {
+                responseDiv.textContent = `Error: ${error.message}`;
+            }
+        }
+
+        // Enter key support for chat
+        document.getElementById('chat-input').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+
+        // Initial load and periodic updates
+        checkHealth();
+        checkNodeStatus(); 
+        checkPeers();
+        
+        // Update every 30 seconds
+        setInterval(() => {
+            checkHealth();
+            checkNodeStatus();
+            checkPeers();
+        }, 30000);
+    </script>
+</body>
+</html>
