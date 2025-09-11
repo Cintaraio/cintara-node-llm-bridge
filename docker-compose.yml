@@ -41,6 +41,8 @@ services:
     container_name: cintara-ai-bridge
     restart: unless-stopped
     network_mode: "host"  # Use host networking for better connectivity to host services
+    ports:
+      - "8080:8080"  # Explicitly bind bridge API port
     environment:
       - LLAMA_SERVER_URL=http://localhost:8000
       - CINTARA_NODE_URL=http://localhost:26657  # Connect to host node via localhost
@@ -63,6 +65,8 @@ services:
     container_name: cintara-web-ui
     restart: unless-stopped
     network_mode: "host"
+    ports:
+      - "3000:3000"  # Explicitly bind web UI port
     depends_on:
       bridge:
         condition: service_healthy
