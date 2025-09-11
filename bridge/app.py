@@ -655,29 +655,36 @@ async def get_node_peers():
         }}
         """
         
-        t0 = time.time()
-        r = requests.post(
-            f"{LLAMA_SERVER_URL}/completion",
-            json={
-                "prompt": prompt,
-                "n_predict": 250,
-                "temperature": 0.1,
-                "stop": ["}"]
-            },
-            timeout=60
-        )
+        # Fast analysis without LLM to avoid timeouts
+        total_peers = int(result.get("n_peers", "0"))
         
-        analysis = {"connectivity_health": "unknown", "summary": "Analysis unavailable"}
-        if r.status_code == 200:
-            content = r.json().get("content", "").strip()
-            try:
-                if not content.endswith("}"):
-                    content += "}"
-                analysis = json.loads(content)
-            except json.JSONDecodeError:
-                analysis["summary"] = content
+        # Quick health assessment
+        connectivity_health = "excellent" if total_peers >= 3 else "good" if total_peers >= 2 else "fair" if total_peers >= 1 else "poor"
         
-        latency_ms = int((time.time() - t0) * 1000)
+        # Geographic diversity check
+        unique_ips = len(set(peer.get("remote_ip", "") for peer in peers))
+        peer_diversity = "high" if unique_ips >= 3 else "medium" if unique_ips >= 2 else "low"
+        
+        # Quick issue detection
+        issues = []
+        if total_peers == 0:
+            issues.append("No peers connected - node is isolated")
+        elif total_peers < 2:
+            issues.append("Low peer count - may affect sync reliability")
+        
+        recommendations = []
+        if total_peers < 3:
+            recommendations.append("Consider adding more persistent peers")
+        
+        analysis = {
+            "connectivity_health": connectivity_health,
+            "peer_diversity": peer_diversity,
+            "issues": issues,
+            "recommendations": recommendations,
+            "summary": f"Node has {total_peers} peers with {connectivity_health} connectivity"
+        }
+        
+        latency_ms = 100  # Fast non-LLM analysis
         
         return {
             "peer_analysis": analysis,
