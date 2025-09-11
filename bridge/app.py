@@ -9,9 +9,13 @@ from typing import Optional, Dict, Any
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Environment variables
-LLAMA_SERVER_URL = os.getenv("LLAMA_SERVER_URL", "http://llama:8000")
-CINTARA_NODE_URL = os.getenv("CINTARA_NODE_URL", "http://cintara-node:26657")
+# Environment variables with localhost defaults
+LLAMA_SERVER_URL = os.getenv("LLAMA_SERVER_URL", "http://localhost:8000")
+CINTARA_NODE_URL = os.getenv("CINTARA_NODE_URL", "http://localhost:26657")
+
+# Log the configuration
+logger.info(f"LLM Server URL: {LLAMA_SERVER_URL}")
+logger.info(f"Cintara Node URL: {CINTARA_NODE_URL}")
 
 app = FastAPI(
     title="Cintara LLM Bridge",
