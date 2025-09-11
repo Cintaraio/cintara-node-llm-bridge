@@ -6,13 +6,13 @@ services:
     restart: unless-stopped
     command: [
       "--model", "/models/${MODEL_FILE:-tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf}",
-      "--ctx-size", "${CTX_SIZE:-512}",
-      "--threads", "${LLM_THREADS:-2}",
+      "--ctx-size", "${CTX_SIZE:-256}",
+      "--threads", "${LLM_THREADS:-1}",
       "--host", "0.0.0.0",
       "--port", "8000",
-      "--n-predict", "64",
-      "--batch-size", "128",
-      "--verbose"
+      "--n-predict", "32",
+      "--batch-size", "64",
+      "--timeout", "30"
     ]
     volumes:
       - ./models:/models:ro
@@ -20,20 +20,20 @@ services:
       - LLAMA_ARG_HOST=0.0.0.0
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:8000/health > /dev/null || exit 1"]
-      interval: 60s
-      timeout: 30s
-      retries: 5
-      start_period: 120s
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
     ports:
       - "8000:8000"  # LLM API port
     deploy:
       resources:
         limits:
-          cpus: '1.5'  # Reduced CPU limit for better compatibility
-          memory: 2G   # Reduced memory allocation
+          cpus: '1.0'  # Further reduced for stability
+          memory: 1.5G # Conservative memory limit
         reservations:
-          cpus: '0.5'  # Minimal CPU reservation
-          memory: 1G   # Minimal memory reservation
+          cpus: '0.25' # Minimal reservation
+          memory: 512M # Minimal memory
 
   # AI Bridge - Connects to host Cintara node
   bridge:
@@ -53,9 +53,10 @@ services:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:8080/health > /dev/null || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+      interval: 15s
+      timeout: 5s
+      retries: 2
+      start_period: 30s
 
   # Web UI - Simple HTML interface (reliable, no build issues)
   web-ui:
