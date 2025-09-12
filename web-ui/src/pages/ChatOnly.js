@@ -20,6 +20,7 @@ const Header = styled.div`
   align-items: center;
   gap: 0.75rem;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  border-top: 3px solid #58a6ff;
 `;
 
 const Logo = styled.div`
@@ -433,7 +434,7 @@ const ChatOnly = () => {
           <MessageCircle style={{ display: 'none' }} />
         </Logo>
         <TitleContainer>
-          <Title>Cintara AI Assistant</Title>
+          <Title>Cintara AI Assistant (ChatOnly Mode)</Title>
           <Subtitle>Intelligent blockchain node management and support</Subtitle>
         </TitleContainer>
       </Header>
