@@ -28,16 +28,35 @@ function App() {
       <Router>
         <Routes>
           <Route path="/chat-only" element={<ChatOnly />} />
-          <Route path="/*" element={
+          <Route path="/" element={
             <AppContainer>
               <Sidebar />
               <MainContent>
-                <Routes>
-                  <Route path="/" element={<Dashboard />} />
-                  <Route path="/chat" element={<Chat />} />
-                  <Route path="/status" element={<NodeStatus />} />
-                  <Route path="/diagnostics" element={<Diagnostics />} />
-                </Routes>
+                <Dashboard />
+              </MainContent>
+            </AppContainer>
+          } />
+          <Route path="/chat" element={
+            <AppContainer>
+              <Sidebar />
+              <MainContent>
+                <Chat />
+              </MainContent>
+            </AppContainer>
+          } />
+          <Route path="/status" element={
+            <AppContainer>
+              <Sidebar />
+              <MainContent>
+                <NodeStatus />
+              </MainContent>
+            </AppContainer>
+          } />
+          <Route path="/diagnostics" element={
+            <AppContainer>
+              <Sidebar />
+              <MainContent>
+                <Diagnostics />
               </MainContent>
             </AppContainer>
           } />
