@@ -398,9 +398,23 @@
                     body: JSON.stringify({ message: message })
                 });
                 
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
                 const data = await response.json();
-                responseDiv.textContent = `You: ${message}\n\nAI: ${data.response}`;
+                console.log('Full API response:', data); // Debug log
+                
+                // Handle different response formats
+                const aiResponse = data.response || data.message || data.content || JSON.stringify(data);
+                
+                responseDiv.innerHTML = `<div style="margin-bottom: 1rem;"><strong>You:</strong> ${message}</div><div><strong>AI:</strong> ${aiResponse}</div>`;
+                
+                // Auto-scroll to bottom if content overflows
+                responseDiv.scrollTop = responseDiv.scrollHeight;
+                
             } catch (error) {
+                console.error('Chat error:', error);
                 responseDiv.textContent = `Error: ${error.message}`;
             }
         }
