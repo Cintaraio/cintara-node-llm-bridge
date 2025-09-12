@@ -4,6 +4,7 @@ import styled from 'styled-components';
 import Sidebar from './components/Sidebar';
 import Dashboard from './pages/Dashboard';
 import Chat from './pages/Chat';
+import ChatOnly from './pages/ChatOnly';
 import NodeStatus from './pages/NodeStatus';
 import Diagnostics from './pages/Diagnostics';
 import { ApiProvider } from './context/ApiContext';
@@ -25,17 +26,22 @@ function App() {
   return (
     <ApiProvider>
       <Router>
-        <AppContainer>
-          <Sidebar />
-          <MainContent>
-            <Routes>
-              <Route path="/" element={<Dashboard />} />
-              <Route path="/chat" element={<Chat />} />
-              <Route path="/status" element={<NodeStatus />} />
-              <Route path="/diagnostics" element={<Diagnostics />} />
-            </Routes>
-          </MainContent>
-        </AppContainer>
+        <Routes>
+          <Route path="/chat-only" element={<ChatOnly />} />
+          <Route path="/*" element={
+            <AppContainer>
+              <Sidebar />
+              <MainContent>
+                <Routes>
+                  <Route path="/" element={<Dashboard />} />
+                  <Route path="/chat" element={<Chat />} />
+                  <Route path="/status" element={<NodeStatus />} />
+                  <Route path="/diagnostics" element={<Diagnostics />} />
+                </Routes>
+              </MainContent>
+            </AppContainer>
+          } />
+        </Routes>
       </Router>
     </ApiProvider>
   );
