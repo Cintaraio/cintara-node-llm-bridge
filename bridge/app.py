@@ -572,7 +572,7 @@ async def chat_with_ai(req: Request):
             f"{LLAMA_SERVER_URL}/completion",
             json={
                 "prompt": prompt,
-                "n_predict": 400,
+                "n_predict": 1024,
                 "temperature": 0.3,
                 "stop": ["\n\nUser:", "\n\nQuestion:"]
             },
