@@ -572,11 +572,11 @@ async def chat_with_ai(req: Request):
             f"{LLAMA_SERVER_URL}/completion",
             json={
                 "prompt": prompt,
-                "n_predict": 1024,
+                "n_predict": 2048,
                 "temperature": 0.3,
                 "stop": ["\n\nUser:", "\n\nQuestion:"]
             },
-            timeout=60
+            timeout=120
         )
         
         if r.status_code != 200:
