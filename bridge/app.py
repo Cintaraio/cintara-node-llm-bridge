@@ -1,9 +1,10 @@
 from fastapi import FastAPI, Request, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel
 import os, requests, json, time, logging
 from datetime import datetime
 from typing import Optional, Dict, Any
+from taxbit_service import taxbit_service
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -753,3 +754,148 @@ async def legacy_analyze(req: Request):
     payload = await req.json()
     tx_request = TransactionRequest(transaction=payload.get("transaction", {}))
     return await analyze_transaction(tx_request)
+
+# TaxBit Integration Endpoints
+@app.get("/taxbit/export/{address}")
+async def export_taxbit_csv(address: str, start_date: Optional[str] = None, end_date: Optional[str] = None):
+    """
+    Export TaxBit-compatible CSV for a given Cintara address
+    
+    Args:
+        address: Cintara wallet address (bech32 format)
+        start_date: Optional start date (ISO format)
+        end_date: Optional end date (ISO format)
+    
+    Returns:
+        CSV file download with TaxBit transaction format
+    """
+    try:
+        logger.info(f"Generating TaxBit export for address: {address}")
+        
+        # Parse date filters if provided
+        parsed_start_date = None
+        parsed_end_date = None
+        
+        if start_date:
+            try:
+                parsed_start_date = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
+            except ValueError:
+                raise HTTPException(status_code=400, detail="Invalid start_date format. Use ISO 8601.")
+                
+        if end_date:
+            try:
+                parsed_end_date = datetime.fromisoformat(end_date.replace('Z', '+00:00'))
+            except ValueError:
+                raise HTTPException(status_code=400, detail="Invalid end_date format. Use ISO 8601.")
+        
+        # Generate CSV using TaxBit service
+        csv_content = taxbit_service.export_address_transactions(
+            address=address,
+            start_date=parsed_start_date,
+            end_date=parsed_end_date
+        )
+        
+        # Generate filename with timestamp
+        timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        filename = f"cintara_taxbit_export_{address[:12]}_{timestamp}.csv"
+        
+        # Return CSV as downloadable file
+        return Response(
+            content=csv_content,
+            media_type="text/csv",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"TaxBit export failed for {address}: {e}")
+        raise HTTPException(status_code=500, detail=f"Export failed: {str(e)}")
+
+@app.get("/taxbit/preview/{address}")
+async def preview_taxbit_data(address: str, limit: int = 10):
+    """
+    Preview TaxBit data for an address (first N transactions)
+    
+    Args:
+        address: Cintara wallet address
+        limit: Number of transactions to preview (default 10)
+        
+    Returns:
+        JSON array of TaxBit formatted transactions
+    """
+    try:
+        logger.info(f"Generating TaxBit preview for address: {address}")
+        
+        # TODO: This is a placeholder - needs real database integration
+        sample_data = [
+            {
+                "timestamp": "2024-01-15T10:30:00Z",
+                "txid": "ABC123SAMPLE",
+                "source_name": "Cintara",
+                "from_wallet_address": address,
+                "to_wallet_address": "cintara1recipient123...",
+                "category": "Outbound > Transfer",
+                "out_currency": "CTR",
+                "out_amount": 1.0,
+                "fee_currency": "CTR",
+                "fee": 0.005,
+                "memo": "Sample transaction",
+                "status": "Completed"
+            }
+        ]
+        
+        return {
+            "address": address,
+            "preview_count": len(sample_data),
+            "transactions": sample_data[:limit],
+            "note": "This is preview data. Use /taxbit/export/{address} for full CSV download.",
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"TaxBit preview failed for {address}: {e}")
+        raise HTTPException(status_code=500, detail=f"Preview failed: {str(e)}")
+
+@app.get("/taxbit/categories")
+async def get_taxbit_categories():
+    """
+    Get list of supported TaxBit transaction categories
+    
+    Returns:
+        List of available categories and their descriptions
+    """
+    from taxbit_service import TaxBitCategory
+    
+    categories = []
+    for category in TaxBitCategory:
+        categories.append({
+            "value": category.value,
+            "name": category.name,
+            "description": _get_category_description(category)
+        })
+    
+    return {
+        "categories": categories,
+        "total_count": len(categories),
+        "timestamp": datetime.utcnow().isoformat()
+    }
+
+def _get_category_description(category) -> str:
+    """Get human-readable description for TaxBit category"""
+    descriptions = {
+        "INBOUND_BUY": "Assets purchased or acquired",
+        "INBOUND_INCOME": "Income received (general)",
+        "INBOUND_AIRDROP": "Free tokens received via airdrop",
+        "INBOUND_STAKING_REWARD": "Rewards earned from staking",
+        "INBOUND_STAKING_WITHDRAWAL": "Unstaked tokens returned",
+        "OUTBOUND_SELL": "Assets sold or disposed",
+        "OUTBOUND_EXPENSE": "General expense or payment",
+        "OUTBOUND_FEE": "Transaction or service fees",
+        "OUTBOUND_STAKING_DEPOSIT": "Tokens staked/delegated",
+        "OUTBOUND_TRANSFER": "Transfer to another wallet",
+        "SWAP_SWAP": "Asset exchanged for another asset",
+        "INTERNAL_TRANSFER": "Transfer between own wallets",
+        "IGNORE": "Transaction to be ignored for tax purposes"
+    }
+    return descriptions.get(category.name, "No description available")
