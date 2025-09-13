@@ -144,6 +144,41 @@
             margin-bottom: 2rem;
         }
         
+        .taxbit-section {
+            background: #f6f8fa;
+            border: 1px solid #d1d9e0;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        
+        .taxbit-input {
+            display: flex;
+            gap: 0.75rem;
+            margin-top: 1rem;
+            flex-wrap: wrap;
+        }
+        
+        .taxbit-input input {
+            flex: 1;
+            min-width: 300px;
+            background: #ffffff;
+            border: 1px solid #d1d9e0;
+            border-radius: 6px;
+            padding: 0.75rem;
+            color: #24292f;
+        }
+        
+        .btn-primary {
+            background: #0969da;
+            border-color: #0969da;
+        }
+        
+        .btn-primary:hover {
+            background: #0860ca;
+            border-color: #0860ca;
+        }
+        
         .chat-input {
             display: flex;
             gap: 0.75rem;
@@ -309,6 +344,17 @@
             <div class="response" id="chat-response" style="display: none;"></div>
         </div>
 
+        <div class="taxbit-section">
+            <h3>📊 TaxBit Integration</h3>
+            <p style="color: #656d76; margin-bottom: 1rem;">Export your Cintara transactions for tax reporting with TaxBit compatibility</p>
+            <div class="taxbit-input">
+                <input type="text" id="taxbit-address" placeholder="Enter your Cintara address (cintara1...)" />
+                <button class="btn" onclick="previewTaxBit()">Preview</button>
+                <button class="btn btn-primary" onclick="exportTaxBit()">Export CSV</button>
+            </div>
+            <div class="response" id="taxbit-response" style="display: none;"></div>
+        </div>
+
         <div class="endpoints">
             <h3>🔗 API Endpoints</h3>
             <div class="endpoint">
@@ -421,6 +467,89 @@
                 sendMessage();
             }
         });
+
+        // TaxBit functions
+        async function previewTaxBit() {
+            const input = document.getElementById('taxbit-address');
+            const responseDiv = document.getElementById('taxbit-response');
+            const address = input.value.trim();
+            
+            if (!address) {
+                alert('Please enter a Cintara address');
+                return;
+            }
+            
+            if (!address.startsWith('cintara1')) {
+                alert('Please enter a valid Cintara address (starts with cintara1)');
+                return;
+            }
+            
+            responseDiv.style.display = 'block';
+            responseDiv.textContent = 'Loading preview...';
+            
+            try {
+                const response = await fetch(`/api/taxbit/preview/${encodeURIComponent(address)}`);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    responseDiv.innerHTML = `<div style="margin-bottom: 1rem;"><strong>Preview for ${address}</strong></div>` +
+                        `<div style="margin-bottom: 1rem;">Found ${data.preview_count} sample transactions:</div>` +
+                        `<pre style="background: #ffffff; padding: 1rem; border-radius: 4px; overflow-x: auto;">${JSON.stringify(data.transactions, null, 2)}</pre>` +
+                        `<div style="margin-top: 1rem; font-size: 0.875rem; color: #656d76;">${data.note}</div>`;
+                } else {
+                    responseDiv.textContent = `Error: ${data.detail || 'Failed to preview data'}`;
+                }
+                
+            } catch (error) {
+                responseDiv.textContent = `Error: ${error.message}`;
+            }
+        }
+        
+        async function exportTaxBit() {
+            const input = document.getElementById('taxbit-address');
+            const responseDiv = document.getElementById('taxbit-response');
+            const address = input.value.trim();
+            
+            if (!address) {
+                alert('Please enter a Cintara address');
+                return;
+            }
+            
+            if (!address.startsWith('cintara1')) {
+                alert('Please enter a valid Cintara address (starts with cintara1)');
+                return;
+            }
+            
+            responseDiv.style.display = 'block';
+            responseDiv.textContent = 'Generating CSV export...';
+            
+            try {
+                const response = await fetch(`/api/taxbit/export/${encodeURIComponent(address)}`);
+                
+                if (response.ok) {
+                    // Create a download link
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `cintara_taxbit_export_${address.substring(0, 12)}_${new Date().toISOString().slice(0, 10)}.csv`;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+                    
+                    responseDiv.innerHTML = `<div style="color: #2da44e;"><strong>✅ CSV Export Successful!</strong></div>` +
+                        `<div>Your TaxBit-compatible CSV has been downloaded.</div>` +
+                        `<div style="margin-top: 0.5rem; font-size: 0.875rem; color: #656d76;">You can now import this file into TaxBit for tax reporting.</div>`;
+                } else {
+                    const errorData = await response.json();
+                    responseDiv.textContent = `Error: ${errorData.detail || 'Failed to export CSV'}`;
+                }
+                
+            } catch (error) {
+                responseDiv.textContent = `Error: ${error.message}`;
+            }
+        }
 
         // Initial load and periodic updates
         checkHealth();
