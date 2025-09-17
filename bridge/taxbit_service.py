@@ -332,43 +332,56 @@ class TaxBitService:
             # Return sample transactions for testing
             sample_transactions = [
                 {
-                    'hash': 'ABC123456789',
-                    'height': '1234',
-                    'timestamp': (datetime.now(timezone.utc) - timedelta(days=1)).isoformat().replace('+00:00', 'Z'),
+                    'hash': '1A2B3C4D5E6F7A8B9C0D1E2F3A4B5C6D7E8F9A0B1C2D3E4F5A6B7C8D9E0F1A2B',
+                    'height': '12345',
+                    'timestamp': (datetime.now(timezone.utc) - timedelta(days=2)).isoformat().replace('+00:00', 'Z'),
                     'success': True,
                     'type': 'MsgSend',
                     'from_address': address,
-                    'to_address': 'cintara1recipient123456789',
-                    'amount': '1000000',
-                    'denom': 'uCTR',
-                    'fee': '5000',
-                    'memo': 'Sample transfer transaction'
+                    'to_address': 'cintara1qy352eujq3d8g2jlzgd5k7j8h9f6g5h4j3k2l1',
+                    'amount': '5000000',  # 5 CTR
+                    'denom': 'uctr',
+                    'fee': '2500',  # 0.0025 CTR
+                    'memo': 'Transfer to exchange'
                 },
                 {
-                    'hash': 'DEF987654321',
-                    'height': '1235',
-                    'timestamp': (datetime.now(timezone.utc) - timedelta(hours=12)).isoformat().replace('+00:00', 'Z'),
+                    'hash': '9F8E7D6C5B4A3F2E1D0C9B8A7F6E5D4C3B2A1F0E9D8C7B6A5F4E3D2C1B0A9F8E',
+                    'height': '12346',
+                    'timestamp': (datetime.now(timezone.utc) - timedelta(days=1)).isoformat().replace('+00:00', 'Z'),
                     'success': True,
                     'type': 'MsgWithdrawDelegatorReward',
-                    'from_address': '',
+                    'from_address': 'cintaravaloper1xyz789validator456def123ghi789jkl456mno123',
                     'to_address': address,
-                    'amount': '50000',
-                    'denom': 'uCTR',
-                    'fee': '2500',
-                    'memo': 'Staking reward'
+                    'amount': '125000',  # 0.125 CTR reward
+                    'denom': 'uctr',
+                    'fee': '1500',  # 0.0015 CTR
+                    'memo': 'Daily staking rewards'
                 },
                 {
-                    'hash': 'GHI555444333',
-                    'height': '1236',
-                    'timestamp': (datetime.now(timezone.utc) - timedelta(hours=6)).isoformat().replace('+00:00', 'Z'),
+                    'hash': '5A4B3C2D1E0F9A8B7C6D5E4F3A2B1C0D9E8F7A6B5C4D3E2F1A0B9C8D7E6F5A4B',
+                    'height': '12347',
+                    'timestamp': (datetime.now(timezone.utc) - timedelta(hours=8)).isoformat().replace('+00:00', 'Z'),
                     'success': True,
                     'type': 'MsgDelegate',
                     'from_address': address,
-                    'to_address': 'cintaravaloper1validator123',
-                    'amount': '500000',
-                    'denom': 'uCTR',
-                    'fee': '7500',
-                    'memo': 'Delegation to validator'
+                    'to_address': 'cintaravaloper1abc123validator789def456ghi123jkl789mno456',
+                    'amount': '10000000',  # 10 CTR delegation
+                    'denom': 'uctr',
+                    'fee': '3000',  # 0.003 CTR
+                    'memo': 'Stake to validator'
+                },
+                {
+                    'hash': 'F1E2D3C4B5A69F8E7D6C5B4A3F2E1D0C9B8A7F6E5D4C3B2A1F0E9D8C7B6A5F4E',
+                    'height': '12348',
+                    'timestamp': (datetime.now(timezone.utc) - timedelta(hours=2)).isoformat().replace('+00:00', 'Z'),
+                    'success': True,
+                    'type': 'MsgSend',
+                    'from_address': 'cintara1def456ghi789jkl123mno456pqr789stu123vwx',
+                    'to_address': address,
+                    'amount': '2500000',  # 2.5 CTR received
+                    'denom': 'uctr',
+                    'fee': '2000',  # 0.002 CTR
+                    'memo': 'Payment received'
                 }
             ]
 
