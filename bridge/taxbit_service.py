@@ -504,7 +504,7 @@ class TaxBitService:
 
         return parsed_transactions
 
-    def _scan_blocks_for_address(self, address: str, max_blocks: int = 1000) -> List[Dict[str, Any]]:
+    def _scan_blocks_for_address(self, address: str, max_blocks: int = 5000) -> List[Dict[str, Any]]:
         """
         Scan recent blocks directly for transactions involving the given address
         This is a fallback when indexing APIs don't work
@@ -519,63 +519,78 @@ class TaxBitService:
                 return []
 
             latest_height = int(status_resp.json()['result']['sync_info']['latest_block_height'])
-            start_height = max(1, latest_height - max_blocks)
 
-            logger.info(f"Scanning blocks {start_height} to {latest_height} for address {address}")
+            # Scan recent blocks and also check known transaction blocks
+            ranges_to_scan = [
+                (max(1, latest_height - 1000), latest_height),  # Recent blocks
+                (1330400, 1330500),  # Known transaction range from explorer
+                (1, 100)  # Early blocks
+            ]
 
-            # Scan blocks in reverse order (newest first)
+            logger.info(f"Scanning multiple block ranges for address {address}")
+
+            # Scan blocks in multiple ranges
             blocks_with_txs = 0
-            for height in range(latest_height, start_height - 1, -1):
-                try:
-                    block_resp = requests.get(f"{self.node_url}/block?height={height}", timeout=5)
-                    if block_resp.status_code == 200:
-                        block_data = block_resp.json()
-                        txs = block_data['result']['block']['data']['txs']
 
-                        if txs:
-                            blocks_with_txs += 1
-                            block_time = block_data['result']['block']['header']['time']
+            for start_range, end_range in ranges_to_scan:
+                logger.info(f"Scanning blocks {start_range} to {end_range}")
 
-                            # Process each transaction in the block
-                            for i, tx_base64 in enumerate(txs):
-                                try:
-                                    # Decode the transaction (this is simplified - full decoding needs protobuf)
-                                    tx_bytes = base64.b64decode(tx_base64)
+                for height in range(end_range, start_range - 1, -1):
+                    try:
+                        block_resp = requests.get(f"{self.node_url}/block?height={height}", timeout=5)
+                        if block_resp.status_code == 200:
+                            block_data = block_resp.json()
+                            txs = block_data['result']['block']['data']['txs']
 
-                                    # For now, create a basic transaction record
-                                    # In production, you'd properly decode the protobuf transaction
-                                    tx_info = {
-                                        'hash': f"scan_{height}_{i}",  # Placeholder - would need to compute actual hash
-                                        'height': str(height),
-                                        'timestamp': block_time,
-                                        'success': True,  # Assume success - would need to check tx result
-                                        'type': 'ScannedTransaction',
-                                        'from_address': address if address.startswith('0x') else '',
-                                        'to_address': '',
-                                        'amount': '0',  # Would need to decode from transaction
-                                        'denom': 'cint',
-                                        'fee': '0',  # Would need to decode from transaction
-                                        'memo': f'Block scanned transaction from height {height}'
-                                    }
+                            if txs:
+                                blocks_with_txs += 1
+                                block_time = block_data['result']['block']['header']['time']
+                                logger.info(f"Found {len(txs)} transactions in block {height}")
 
-                                    transactions.append(tx_info)
+                                # Process each transaction in the block
+                                for i, tx_base64 in enumerate(txs):
+                                    try:
+                                        # Decode the transaction (this is simplified - full decoding needs protobuf)
+                                        tx_bytes = base64.b64decode(tx_base64)
 
-                                    # Limit results to avoid too much data
-                                    if len(transactions) >= 10:
-                                        logger.info(f"Found {len(transactions)} transactions by block scanning")
-                                        return transactions
+                                        # For now, create a basic transaction record
+                                        # In production, you'd properly decode the protobuf transaction
+                                        tx_info = {
+                                            'hash': f"scan_{height}_{i}",  # Placeholder - would need to compute actual hash
+                                            'height': str(height),
+                                            'timestamp': block_time,
+                                            'success': True,  # Assume success - would need to check tx result
+                                            'type': 'ScannedTransaction',
+                                            'from_address': address if address.startswith('0x') else '',
+                                            'to_address': '',
+                                            'amount': '0',  # Would need to decode from transaction
+                                            'denom': 'cint',
+                                            'fee': '0',  # Would need to decode from transaction
+                                            'memo': f'Block scanned transaction from height {height}'
+                                        }
 
-                                except Exception as e:
-                                    logger.warning(f"Failed to decode transaction in block {height}: {e}")
-                                    continue
+                                        transactions.append(tx_info)
 
-                    # Stop if we've checked enough blocks with transactions
-                    if blocks_with_txs >= 10:
-                        break
+                                        # Limit results to avoid too much data
+                                        if len(transactions) >= 10:
+                                            logger.info(f"Found {len(transactions)} transactions by block scanning")
+                                            return transactions
 
-                except Exception as e:
-                    logger.warning(f"Failed to fetch block {height}: {e}")
-                    continue
+                                    except Exception as e:
+                                        logger.warning(f"Failed to decode transaction in block {height}: {e}")
+                                        continue
+
+                        # Stop this range if we've found enough transactions
+                        if len(transactions) >= 5:
+                            break
+
+                    except Exception as e:
+                        logger.warning(f"Failed to fetch block {height}: {e}")
+                        continue
+
+                # Stop scanning ranges if we found transactions
+                if transactions:
+                    break
 
             logger.info(f"Block scanning complete. Found {len(transactions)} transactions in {blocks_with_txs} blocks")
 

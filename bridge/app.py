@@ -831,7 +831,7 @@ async def preview_taxbit_data(address: str, limit: int = 10):
         logger.info(f"Generating TaxBit preview for address: {address}")
 
         # Fetch real transactions using TaxBit service
-        transactions = taxbit_service.export_address_transactions(address)
+        transactions = taxbit_service.fetch_transactions_by_address(address)
 
         # Convert to preview format (limit to first N transactions)
         preview_data = []
