@@ -349,8 +349,7 @@ class TaxBitService:
                                 break
 
                     if not has_transactions:
-                        logger.warning("No transactions found in recent blocks")
-                        return []
+                        logger.warning("No transactions found in recent blocks - will try comprehensive scanning")
 
             except Exception as e:
                 logger.error(f"Failed to check for transactions: {e}")
