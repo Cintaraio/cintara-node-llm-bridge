@@ -24,6 +24,7 @@ RUN groupadd -g 1001 bridge && \
 
 # Copy application code
 COPY app.py /app/app.py
+COPY taxbit_service.py /app/taxbit_service.py
 
 # Set ownership and permissions
 RUN chown -R bridge:bridge /app
