@@ -326,117 +326,176 @@ class TaxBitService:
         transactions = []
 
         try:
-            # TEMPORARY: Return sample data for testing since tx indexing may not be enabled
-            logger.info(f"Generating sample transaction data for address: {address}")
+            # Check if node has transaction indexing enabled and any transactions exist
+            logger.info(f"Fetching real transactions for address: {address}")
 
-            # Return sample transactions for testing
-            sample_transactions = [
-                {
-                    'hash': '1A2B3C4D5E6F7A8B9C0D1E2F3A4B5C6D7E8F9A0B1C2D3E4F5A6B7C8D9E0F1A2B',
-                    'height': '12345',
-                    'timestamp': (datetime.now(timezone.utc) - timedelta(days=2)).isoformat().replace('+00:00', 'Z'),
-                    'success': True,
-                    'type': 'MsgSend',
-                    'from_address': address,
-                    'to_address': 'cintara1qy352eujq3d8g2jlzgd5k7j8h9f6g5h4j3k2l1',
-                    'amount': '5000000',  # 5 CTR
-                    'denom': 'uctr',
-                    'fee': '2500',  # 0.0025 CTR
-                    'memo': 'Transfer to exchange'
-                },
-                {
-                    'hash': '9F8E7D6C5B4A3F2E1D0C9B8A7F6E5D4C3B2A1F0E9D8C7B6A5F4E3D2C1B0A9F8E',
-                    'height': '12346',
-                    'timestamp': (datetime.now(timezone.utc) - timedelta(days=1)).isoformat().replace('+00:00', 'Z'),
-                    'success': True,
-                    'type': 'MsgWithdrawDelegatorReward',
-                    'from_address': 'cintaravaloper1xyz789validator456def123ghi789jkl456mno123',
-                    'to_address': address,
-                    'amount': '125000',  # 0.125 CTR reward
-                    'denom': 'uctr',
-                    'fee': '1500',  # 0.0015 CTR
-                    'memo': 'Daily staking rewards'
-                },
-                {
-                    'hash': '5A4B3C2D1E0F9A8B7C6D5E4F3A2B1C0D9E8F7A6B5C4D3E2F1A0B9C8D7E6F5A4B',
-                    'height': '12347',
-                    'timestamp': (datetime.now(timezone.utc) - timedelta(hours=8)).isoformat().replace('+00:00', 'Z'),
-                    'success': True,
-                    'type': 'MsgDelegate',
-                    'from_address': address,
-                    'to_address': 'cintaravaloper1abc123validator789def456ghi123jkl789mno456',
-                    'amount': '10000000',  # 10 CTR delegation
-                    'denom': 'uctr',
-                    'fee': '3000',  # 0.003 CTR
-                    'memo': 'Stake to validator'
-                },
-                {
-                    'hash': 'F1E2D3C4B5A69F8E7D6C5B4A3F2E1D0C9B8A7F6E5D4C3B2A1F0E9D8C7B6A5F4E',
-                    'height': '12348',
-                    'timestamp': (datetime.now(timezone.utc) - timedelta(hours=2)).isoformat().replace('+00:00', 'Z'),
-                    'success': True,
-                    'type': 'MsgSend',
-                    'from_address': 'cintara1def456ghi789jkl123mno456pqr789stu123vwx',
-                    'to_address': address,
-                    'amount': '2500000',  # 2.5 CTR received
-                    'denom': 'uctr',
-                    'fee': '2000',  # 0.002 CTR
-                    'memo': 'Payment received'
-                }
-            ]
+            # First check if there are any transactions at all in recent blocks
+            try:
+                status_resp = requests.get(f"{self.node_url}/status", timeout=10)
+                if status_resp.status_code == 200:
+                    latest_height = int(status_resp.json()['result']['sync_info']['latest_block_height'])
+                    logger.info(f"Latest block height: {latest_height}")
 
-            return sample_transactions
+                    # Check last 10 blocks for any transactions
+                    has_transactions = False
+                    for height in range(max(1, latest_height - 10), latest_height + 1):
+                        block_resp = requests.get(f"{self.node_url}/block?height={height}", timeout=5)
+                        if block_resp.status_code == 200:
+                            txs = block_resp.json()['result']['block']['data']['txs']
+                            if txs:
+                                has_transactions = True
+                                logger.info(f"Found {len(txs)} transactions in block {height}")
+                                break
 
-            # TODO: Re-enable real transaction fetching once node indexing is configured
-            # Original code commented out below:
+                    if not has_transactions:
+                        logger.warning("No transactions found in recent blocks")
+                        return []
 
-            # # Query transactions using Cosmos SDK REST API
-            # # Note: This assumes the node has indexing enabled for tx search
-            #
-            # # Build query parameters
-            # query_params = {
-            #     'events': f'transfer.recipient={address}',
-            #     'order_by': 'desc',
-            #     'limit': '100'
-            # }
-            #
-            # # Add sender transactions
-            # sender_params = {
-            #     'events': f'transfer.sender={address}',
-            #     'order_by': 'desc',
-            #     'limit': '100'
-            # }
-            #
-            # # Fetch recipient transactions
-            # resp = requests.get(f"{self.node_url}/tx_search", params=query_params, timeout=30)
-            # if resp.status_code == 200:
-            #     data = resp.json()
-            #     if 'result' in data and 'txs' in data['result']:
-            #         transactions.extend(self._parse_cosmos_transactions(data['result']['txs'], address))
-            #
-            # # Fetch sender transactions
-            # resp = requests.get(f"{self.node_url}/tx_search", params=sender_params, timeout=30)
-            # if resp.status_code == 200:
-            #     data = resp.json()
-            #     if 'result' in data and 'txs' in data['result']:
-            #         transactions.extend(self._parse_cosmos_transactions(data['result']['txs'], address))
-            #
-            # # Remove duplicates and sort by timestamp
-            # seen_hashes = set()
-            # unique_transactions = []
-            # for tx in transactions:
-            #     if tx['hash'] not in seen_hashes:
-            #         seen_hashes.add(tx['hash'])
-            #         unique_transactions.append(tx)
-            #
-            # # Sort by timestamp descending (newest first)
-            # unique_transactions.sort(key=lambda x: x.get('timestamp', ''), reverse=True)
-            #
-            # return unique_transactions
+            except Exception as e:
+                logger.error(f"Failed to check for transactions: {e}")
+                return []
+
+            # Try different approaches for transaction fetching based on address type
+            if address.startswith('0x'):
+                # Ethereum address - try EVM-specific queries
+                transactions.extend(self._fetch_evm_transactions(address))
+            else:
+                # Cosmos address - try standard Cosmos queries
+                transactions.extend(self._fetch_cosmos_transactions(address))
+
+            # Remove duplicates and sort by timestamp
+            seen_hashes = set()
+            unique_transactions = []
+            for tx in transactions:
+                if tx['hash'] not in seen_hashes:
+                    seen_hashes.add(tx['hash'])
+                    unique_transactions.append(tx)
+
+            # Sort by timestamp descending (newest first)
+            unique_transactions.sort(key=lambda x: x.get('timestamp', ''), reverse=True)
+
+            # Apply date filtering if provided
+            if start_date or end_date:
+                filtered_transactions = []
+                for tx in unique_transactions:
+                    tx_time = datetime.fromisoformat(tx['timestamp'].replace('Z', '+00:00'))
+                    if start_date and tx_time < start_date:
+                        continue
+                    if end_date and tx_time > end_date:
+                        continue
+                    filtered_transactions.append(tx)
+                return filtered_transactions
+
+            return unique_transactions
 
         except Exception as e:
             logger.error(f"Failed to fetch transactions for {address}: {e}")
             return []
+
+    def _fetch_cosmos_transactions(self, address: str) -> List[Dict[str, Any]]:
+        """Fetch transactions for Cosmos bech32 addresses"""
+        transactions = []
+
+        try:
+            # Try different query formats
+            query_formats = [
+                f'transfer.recipient=\'{address}\'',
+                f'transfer.sender=\'{address}\'',
+                f'message.sender=\'{address}\'',
+            ]
+
+            for query in query_formats:
+                try:
+                    params = {'query': query, 'order_by': 'desc', 'per_page': '50'}
+                    resp = requests.get(f"{self.node_url}/tx_search", params=params, timeout=30)
+
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        if 'result' in data and 'txs' in data['result']:
+                            transactions.extend(self._parse_cosmos_transactions(data['result']['txs'], address))
+                            logger.info(f"Found {len(data['result']['txs'])} transactions with query: {query}")
+
+                except Exception as e:
+                    logger.warning(f"Query failed for {query}: {e}")
+                    continue
+
+        except Exception as e:
+            logger.error(f"Failed to fetch Cosmos transactions: {e}")
+
+        return transactions
+
+    def _fetch_evm_transactions(self, address: str) -> List[Dict[str, Any]]:
+        """Fetch transactions for Ethereum addresses (0x...)"""
+        transactions = []
+
+        try:
+            # For EVM addresses, try different approaches
+            logger.info(f"Attempting to fetch EVM transactions for {address}")
+
+            # Try searching for EVM transactions
+            query_formats = [
+                f'ethereum_tx.from=\'{address}\'',
+                f'ethereum_tx.to=\'{address}\'',
+                f'message.action=\'/ethermint.evm.v1.MsgEthereumTx\'',
+            ]
+
+            for query in query_formats:
+                try:
+                    params = {'query': query, 'order_by': 'desc', 'per_page': '50'}
+                    resp = requests.get(f"{self.node_url}/tx_search", params=params, timeout=30)
+
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        if 'result' in data and 'txs' in data['result']:
+                            # Parse EVM transactions differently
+                            evm_txs = self._parse_evm_transactions(data['result']['txs'], address)
+                            transactions.extend(evm_txs)
+                            logger.info(f"Found {len(evm_txs)} EVM transactions with query: {query}")
+
+                except Exception as e:
+                    logger.warning(f"EVM query failed for {query}: {e}")
+                    continue
+
+        except Exception as e:
+            logger.error(f"Failed to fetch EVM transactions: {e}")
+
+        return transactions
+
+    def _parse_evm_transactions(self, cosmos_txs: List[Dict], user_address: str) -> List[Dict[str, Any]]:
+        """Parse EVM transactions from Cosmos transaction format"""
+        parsed_transactions = []
+
+        for cosmos_tx in cosmos_txs:
+            try:
+                tx_hash = cosmos_tx.get('hash', '')
+                tx_height = cosmos_tx.get('height', '0')
+                tx_result = cosmos_tx.get('tx_result', {})
+
+                timestamp = self._get_block_timestamp(tx_height)
+
+                # For EVM transactions, we need to decode the transaction data
+                # This is a simplified version - in production you'd need full EVM log parsing
+                tx_info = {
+                    'hash': tx_hash,
+                    'height': tx_height,
+                    'timestamp': timestamp,
+                    'success': tx_result.get('code', 1) == 0,
+                    'type': 'MsgEthereumTx',
+                    'from_address': user_address,
+                    'to_address': '',  # Would need to decode from EVM transaction
+                    'amount': '0',  # Would need to decode from EVM logs
+                    'denom': 'uctr',
+                    'fee': tx_result.get('gas_used', '0'),
+                    'memo': 'EVM Transaction'
+                }
+
+                parsed_transactions.append(tx_info)
+
+            except Exception as e:
+                logger.error(f"Failed to parse EVM transaction: {e}")
+                continue
+
+        return parsed_transactions
 
     def _parse_cosmos_transactions(self, cosmos_txs: List[Dict], user_address: str) -> List[Dict[str, Any]]:
         """
