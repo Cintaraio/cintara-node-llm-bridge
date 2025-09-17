@@ -109,8 +109,9 @@ class TaxBitService:
     ]
 
     def __init__(self, node_url: str = "http://localhost:26657"):
-        self.native_currency = "CTR"  # Cintara native token
+        self.native_currency = "CINT"  # Cintara native token
         self.node_url = node_url
+        self.rest_api_url = node_url.replace(':26657', ':1317')  # REST API endpoint
         
     def classify_transaction(self, tx_data: Dict[str, Any]) -> TaxBitCategory:
         """
