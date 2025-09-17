@@ -844,7 +844,7 @@ async def preview_taxbit_data(address: str, limit: int = 10):
                     "source_name": taxbit_tx.source_name,
                     "from_wallet_address": taxbit_tx.from_wallet_address,
                     "to_wallet_address": taxbit_tx.to_wallet_address,
-                    "category": f"{taxbit_tx.category.value} > {taxbit_tx.sub_category.value}" if taxbit_tx.sub_category else taxbit_tx.category.value,
+                    "category": taxbit_tx.category if isinstance(taxbit_tx.category, str) else taxbit_tx.category.value if taxbit_tx.category else "Unknown",
                     "in_currency": taxbit_tx.in_currency or "",
                     "in_amount": taxbit_tx.in_amount or 0,
                     "out_currency": taxbit_tx.out_currency or "",
