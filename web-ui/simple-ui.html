@@ -348,7 +348,7 @@
             <h3>📊 TaxBit Integration</h3>
             <p style="color: #656d76; margin-bottom: 1rem;">Export your Cintara transactions for tax reporting with TaxBit compatibility</p>
             <div class="taxbit-input">
-                <input type="text" id="taxbit-address" placeholder="Enter your Cintara address (cintara1...)" />
+                <input type="text" id="taxbit-address" placeholder="Enter your address (cintara1..., cosmos1..., or 0x...)" />
                 <button class="btn" onclick="previewTaxBit()">Preview</button>
                 <button class="btn btn-primary" onclick="exportTaxBit()">Export CSV</button>
             </div>
@@ -479,8 +479,13 @@
                 return;
             }
             
-            if (!address.startsWith('cintara1')) {
-                alert('Please enter a valid Cintara address (starts with cintara1)');
+            // Validate address format (accept both Cosmos bech32 and Ethereum hex formats)
+            const isValidAddress = address.startsWith('cintara1') ||
+                                 address.startsWith('cosmos1') ||
+                                 (address.startsWith('0x') && address.length === 42);
+
+            if (!isValidAddress) {
+                alert('Please enter a valid address:\n- Cintara format: cintara1...\n- Cosmos format: cosmos1...\n- Ethereum format: 0x...');
                 return;
             }
             
@@ -515,8 +520,13 @@
                 return;
             }
             
-            if (!address.startsWith('cintara1')) {
-                alert('Please enter a valid Cintara address (starts with cintara1)');
+            // Validate address format (accept both Cosmos bech32 and Ethereum hex formats)
+            const isValidAddress = address.startsWith('cintara1') ||
+                                 address.startsWith('cosmos1') ||
+                                 (address.startsWith('0x') && address.length === 42);
+
+            if (!isValidAddress) {
+                alert('Please enter a valid address:\n- Cintara format: cintara1...\n- Cosmos format: cosmos1...\n- Ethereum format: 0x...');
                 return;
             }
             
