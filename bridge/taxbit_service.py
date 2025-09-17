@@ -14,6 +14,9 @@ memo, status
 import csv
 import io
 import logging
+import requests
+import base64
+import json
 from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
 from enum import Enum
@@ -97,16 +100,17 @@ class TaxBitTransaction:
 
 class TaxBitService:
     """Service for converting Cintara transactions to TaxBit format"""
-    
+
     TAXBIT_CSV_HEADERS = [
         'timestamp', 'txid', 'source_name', 'from_wallet_address', 'to_wallet_address',
         'category', 'in_currency', 'in_amount', 'in_currency_fiat', 'in_amount_fiat',
         'out_currency', 'out_amount', 'out_currency_fiat', 'out_amount_fiat',
         'fee_currency', 'fee', 'fee_currency_fiat', 'fee_fiat', 'memo', 'status'
     ]
-    
-    def __init__(self):
+
+    def __init__(self, node_url: str = "http://localhost:26657"):
         self.native_currency = "CTR"  # Cintara native token
+        self.node_url = node_url
         
     def classify_transaction(self, tx_data: Dict[str, Any]) -> TaxBitCategory:
         """
@@ -267,48 +271,288 @@ class TaxBitService:
         
         return output.getvalue()
     
-    def export_address_transactions(self, address: str, start_date: Optional[datetime] = None, 
+    def export_address_transactions(self, address: str, start_date: Optional[datetime] = None,
                                   end_date: Optional[datetime] = None) -> str:
         """
         Export all transactions for a specific address in TaxBit CSV format
-        
+
         Args:
             address: Cintara wallet address
             start_date: Optional start date for filtering
             end_date: Optional end date for filtering
-            
+
         Returns:
             CSV string ready for download
         """
-        # TODO: Query transactions from database
-        # This is a placeholder - needs to be connected to actual indexer DB
-        
-        sample_transactions = [
-            {
-                'hash': 'ABC123',
-                'timestamp': datetime.now(timezone.utc),
-                'from_address': address,
-                'to_address': 'cintara1recipient...',
-                'amount': '1000000',
-                'denom': 'uCTR',
-                'fee': '5000',
-                'type': 'MsgSend',
-                'success': True,
-                'memo': 'Sample transaction'
-            }
-        ]
-        
-        # Convert transactions
+        logger.info(f"Fetching transactions for address: {address}")
+
+        # Fetch real transactions from Cintara node
+        transactions = self.fetch_transactions_by_address(address, start_date, end_date)
+
+        if not transactions:
+            logger.warning(f"No transactions found for address: {address}")
+            # Return empty CSV with headers
+            return self.generate_csv([])
+
+        logger.info(f"Found {len(transactions)} transactions for address: {address}")
+
+        # Convert transactions to TaxBit format
         taxbit_transactions = []
-        for tx_data in sample_transactions:
+        for tx_data in transactions:
             try:
                 taxbit_tx = self.convert_transaction(tx_data)
                 taxbit_transactions.append(taxbit_tx)
             except Exception as e:
                 logger.error(f"Failed to convert transaction {tx_data.get('hash')}: {e}")
-                
+
+        logger.info(f"Successfully converted {len(taxbit_transactions)} transactions to TaxBit format")
+
         # Generate CSV
         return self.generate_csv(taxbit_transactions)
+
+    def fetch_transactions_by_address(self, address: str, start_date: Optional[datetime] = None,
+                                    end_date: Optional[datetime] = None) -> List[Dict[str, Any]]:
+        """
+        Fetch transactions for a specific address from Cintara node
+
+        Args:
+            address: Cintara wallet address
+            start_date: Optional start date for filtering
+            end_date: Optional end date for filtering
+
+        Returns:
+            List of transaction data dictionaries
+        """
+        transactions = []
+
+        try:
+            # Query transactions using Cosmos SDK REST API
+            # Note: This assumes the node has indexing enabled for tx search
+
+            # Build query parameters
+            query_params = {
+                'events': f'transfer.recipient={address}',  # Transactions where address is recipient
+                'order_by': 'desc',
+                'limit': '100'  # Adjust as needed
+            }
+
+            # Add sender transactions
+            sender_params = {
+                'events': f'transfer.sender={address}',  # Transactions where address is sender
+                'order_by': 'desc',
+                'limit': '100'
+            }
+
+            # Fetch recipient transactions
+            resp = requests.get(f"{self.node_url}/tx_search", params=query_params, timeout=30)
+            if resp.status_code == 200:
+                data = resp.json()
+                if 'result' in data and 'txs' in data['result']:
+                    transactions.extend(self._parse_cosmos_transactions(data['result']['txs'], address))
+
+            # Fetch sender transactions
+            resp = requests.get(f"{self.node_url}/tx_search", params=sender_params, timeout=30)
+            if resp.status_code == 200:
+                data = resp.json()
+                if 'result' in data and 'txs' in data['result']:
+                    transactions.extend(self._parse_cosmos_transactions(data['result']['txs'], address))
+
+            # Remove duplicates and sort by timestamp
+            seen_hashes = set()
+            unique_transactions = []
+            for tx in transactions:
+                if tx['hash'] not in seen_hashes:
+                    seen_hashes.add(tx['hash'])
+                    unique_transactions.append(tx)
+
+            # Sort by timestamp descending (newest first)
+            unique_transactions.sort(key=lambda x: x.get('timestamp', ''), reverse=True)
+
+            # Apply date filtering if provided
+            if start_date or end_date:
+                filtered_transactions = []
+                for tx in unique_transactions:
+                    tx_time = datetime.fromisoformat(tx['timestamp'].replace('Z', '+00:00'))
+                    if start_date and tx_time < start_date:
+                        continue
+                    if end_date and tx_time > end_date:
+                        continue
+                    filtered_transactions.append(tx)
+                return filtered_transactions
+
+            return unique_transactions
+
+        except Exception as e:
+            logger.error(f"Failed to fetch transactions for {address}: {e}")
+            return []
+
+    def _parse_cosmos_transactions(self, cosmos_txs: List[Dict], user_address: str) -> List[Dict[str, Any]]:
+        """
+        Parse Cosmos SDK transaction format into standardized format
+
+        Args:
+            cosmos_txs: List of raw Cosmos transactions
+            user_address: The address we're fetching transactions for
+
+        Returns:
+            List of parsed transaction dictionaries
+        """
+        parsed_transactions = []
+
+        for cosmos_tx in cosmos_txs:
+            try:
+                # Extract basic transaction info
+                tx_hash = cosmos_tx.get('hash', '')
+                tx_height = cosmos_tx.get('height', '0')
+                tx_result = cosmos_tx.get('tx_result', {})
+                tx_data = cosmos_tx.get('tx', '')
+
+                # Parse timestamp from block (may need to fetch block info)
+                timestamp = self._get_block_timestamp(tx_height)
+
+                # Decode transaction data if base64 encoded
+                if isinstance(tx_data, str):
+                    try:
+                        decoded_tx = base64.b64decode(tx_data)
+                        # Note: This would need proper protobuf decoding for full parsing
+                        # For now, we'll extract what we can from events
+                    except Exception as e:
+                        logger.warning(f"Failed to decode tx data: {e}")
+
+                # Extract transaction details from events
+                events = tx_result.get('events', [])
+                tx_info = self._extract_transaction_info(events, user_address, tx_hash)
+
+                if tx_info:
+                    tx_info.update({
+                        'hash': tx_hash,
+                        'height': tx_height,
+                        'timestamp': timestamp,
+                        'success': tx_result.get('code', 1) == 0,  # code 0 means success
+                        'gas_used': tx_result.get('gas_used', '0'),
+                        'gas_wanted': tx_result.get('gas_wanted', '0'),
+                    })
+                    parsed_transactions.append(tx_info)
+
+            except Exception as e:
+                logger.error(f"Failed to parse transaction: {e}")
+                continue
+
+        return parsed_transactions
+
+    def _get_block_timestamp(self, height: str) -> str:
+        """Get block timestamp for a given height"""
+        try:
+            resp = requests.get(f"{self.node_url}/block?height={height}", timeout=10)
+            if resp.status_code == 200:
+                data = resp.json()
+                return data.get('result', {}).get('block', {}).get('header', {}).get('time', '')
+        except Exception as e:
+            logger.warning(f"Failed to get block timestamp for height {height}: {e}")
+
+        return datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
+
+    def _extract_transaction_info(self, events: List[Dict], user_address: str, tx_hash: str) -> Optional[Dict[str, Any]]:
+        """
+        Extract transaction information from Cosmos SDK events
+
+        Args:
+            events: List of transaction events
+            user_address: Address we're analyzing for
+            tx_hash: Transaction hash
+
+        Returns:
+            Parsed transaction info or None
+        """
+        tx_info = {
+            'type': 'unknown',
+            'from_address': '',
+            'to_address': '',
+            'amount': '0',
+            'denom': self.native_currency.lower(),
+            'fee': '0',
+            'memo': ''
+        }
+
+        for event in events:
+            event_type = event.get('type', '')
+            attributes = event.get('attributes', [])
+
+            # Convert attributes to dict for easier access
+            attr_dict = {}
+            for attr in attributes:
+                key = attr.get('key', '')
+                value = attr.get('value', '')
+                # Handle base64 encoded attributes
+                try:
+                    if key:
+                        decoded_key = base64.b64decode(key).decode('utf-8') if key else key
+                        decoded_value = base64.b64decode(value).decode('utf-8') if value else value
+                        attr_dict[decoded_key] = decoded_value
+                except:
+                    attr_dict[key] = value
+
+            # Parse different event types
+            if event_type == 'transfer':
+                # Standard token transfer
+                recipient = attr_dict.get('recipient', '')
+                sender = attr_dict.get('sender', '')
+                amount = attr_dict.get('amount', '0')
+
+                # Extract amount and denom (format: "1000000uCTR")
+                if amount and amount != '0':
+                    # Parse amount like "1000000uCTR"
+                    import re
+                    match = re.match(r'(\d+)([a-zA-Z]+)', amount)
+                    if match:
+                        amount_value, denom = match.groups()
+                        tx_info['amount'] = amount_value
+                        tx_info['denom'] = denom
+
+                tx_info['from_address'] = sender
+                tx_info['to_address'] = recipient
+                tx_info['type'] = 'MsgSend'
+
+            elif event_type == 'message':
+                # Message type information
+                action = attr_dict.get('action', '')
+                sender = attr_dict.get('sender', '')
+                if action:
+                    tx_info['type'] = action
+                if sender:
+                    tx_info['from_address'] = sender
+
+            elif event_type == 'withdraw_rewards':
+                # Staking rewards
+                validator = attr_dict.get('validator', '')
+                amount = attr_dict.get('amount', '0')
+                tx_info['type'] = 'MsgWithdrawDelegatorReward'
+                tx_info['to_address'] = user_address  # User receives rewards
+                tx_info['amount'] = amount.replace(self.native_currency.lower(), '') if amount else '0'
+
+            elif event_type == 'delegate':
+                # Delegation
+                validator = attr_dict.get('validator', '')
+                amount = attr_dict.get('amount', '0')
+                tx_info['type'] = 'MsgDelegate'
+                tx_info['from_address'] = user_address
+                tx_info['to_address'] = validator
+                tx_info['amount'] = amount.replace(self.native_currency.lower(), '') if amount else '0'
+
+            elif event_type == 'unbond':
+                # Undelegation
+                validator = attr_dict.get('validator', '')
+                amount = attr_dict.get('amount', '0')
+                tx_info['type'] = 'MsgUndelegate'
+                tx_info['from_address'] = validator
+                tx_info['to_address'] = user_address
+                tx_info['amount'] = amount.replace(self.native_currency.lower(), '') if amount else '0'
+
+        # Only return transaction info if we found relevant data
+        if tx_info['type'] != 'unknown' or tx_info['amount'] != '0':
+            return tx_info
+
+        return None
 
 # Service instance
 taxbit_service = TaxBitService()

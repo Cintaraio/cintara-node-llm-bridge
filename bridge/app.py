@@ -4,7 +4,7 @@ from pydantic import BaseModel
 import os, requests, json, time, logging
 from datetime import datetime
 from typing import Optional, Dict, Any
-from taxbit_service import taxbit_service
+from taxbit_service import TaxBitService
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -17,6 +17,9 @@ CINTARA_NODE_URL = os.getenv("CINTARA_NODE_URL", "http://localhost:26657")
 # Log the configuration
 logger.info(f"LLM Server URL: {LLAMA_SERVER_URL}")
 logger.info(f"Cintara Node URL: {CINTARA_NODE_URL}")
+
+# Initialize TaxBit service with node URL
+taxbit_service = TaxBitService(node_url=CINTARA_NODE_URL)
 
 app = FastAPI(
     title="Cintara LLM Bridge",
