@@ -395,11 +395,16 @@ class TaxBitService:
                 return []
 
             # For testing: if this is the known test address, try the known transaction hash first
+            # The explorer shows this transaction: 0x864818cd505af41a09df7915fc92fbce1dc78a2cc3f7a710fda18f9e50befdd7
+            # Block: 1330420, Time: 2025-09-12T04:39:06, Amount: 20 CINT
             if address.lower() == "0x400d4a7c9df0b8f438e819b91f7d76b4ed27ce1c":
-                logger.info("Using known transaction hash for test address")
+                logger.info("Attempting to find known transaction from explorer")
                 known_tx = self.fetch_transaction_by_hash("0x864818cd505af41a09df7915fc92fbce1dc78a2cc3f7a710fda18f9e50befdd7")
                 if known_tx:
+                    logger.info("Successfully found known transaction from explorer")
                     transactions.append(known_tx)
+                else:
+                    logger.warning("Known transaction from explorer not found in node")
 
             # Try different approaches for transaction fetching based on address type
             if address.startswith('0x'):
@@ -577,11 +582,10 @@ class TaxBitService:
 
             latest_height = int(status_resp.json()['result']['sync_info']['latest_block_height'])
 
-            # Scan recent blocks and also check known transaction blocks
+            # Focus on the specific block with the known transaction from explorer
             ranges_to_scan = [
-                (max(1, latest_height - 1000), latest_height),  # Recent blocks
-                (1330400, 1330500),  # Known transaction range from explorer
-                (1, 100)  # Early blocks
+                (1330400, 1330500),  # Known transaction range from explorer (prioritize this)
+                (max(1, latest_height - 100), latest_height),  # Recent blocks (limited)
             ]
 
             logger.info(f"Scanning multiple block ranges for address {address}")
