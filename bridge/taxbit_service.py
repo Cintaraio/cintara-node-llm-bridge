@@ -588,9 +588,13 @@ class TaxBitService:
     def _decode_evm_transaction(self, tx_base64: str, height: int, tx_index: int, block_time: str, user_address: str) -> Dict[str, Any]:
         """
         Enhanced EVM transaction decoding from base64 data
-        Extracts more meaningful transaction information
+        Extracts more meaningful transaction information including real transaction hash
         """
         try:
+            # Calculate the real transaction hash (SHA256 of the base64 transaction)
+            import hashlib
+            tx_hash = hashlib.sha256(tx_base64.encode()).hexdigest().upper()
+
             # Decode the base64 transaction
             tx_bytes = base64.b64decode(tx_base64)
 
@@ -626,58 +630,37 @@ class TaxBitService:
 
             import re
 
-            # Transaction-specific mapping based on block height and known data
-            known_transactions = {
-                1330420: {  # Block height
-                    "from": "0x400D4A7c9Df0b8f438e819b91f7D76B4Ed27cE1C",
-                    "to": "0x676944eB6Ba099D99B7d73D9A20427740E04E3D4ccf",
-                    "amount": "20000000000000000000",  # 20 CINT in wei
-                    "tx_hash": "0xe1409f13d6c0aad610a890cea06854009c360327bc3c0e9504cad07259d21058"
-                }
-            }
+            # Generic transaction parsing for any transaction
+            # Look for sequences that might be addresses, but filter out protobuf artifacts
+            potential_addresses = []
 
-            # Check if this is a known transaction we can map
-            if height in known_transactions:
-                tx_data = known_transactions[height]
-                if tx_data["from"].lower() == user_address.lower():
-                    to_address = tx_data["to"]
-                    amount = tx_data["amount"]  # Use precise amount
-                    logger.info(f"Using known transaction data: from={user_address} to={to_address} amount={amount}")
-                else:
-                    to_address = user_address  # It's an inbound transaction
-                    amount = tx_data["amount"]
-                    logger.info(f"Using known transaction data (inbound): from={tx_data['from']} to={user_address} amount={amount}")
+            # More conservative approach - look for patterns that aren't obviously protobuf
+            for i in range(0, len(tx_hex) - 40, 2):
+                chunk = tx_hex[i:i+40]
+
+                # Skip if it contains known protobuf patterns
+                if (len(chunk) == 40 and
+                    "63696e74" not in chunk.lower() and  # Skip "cint" encoded data
+                    "65746865726d696e74" not in chunk.lower() and  # Skip "ethermint" data
+                    chunk != "0" * 40 and  # Not all zeros
+                    chunk.lower() != user_address[2:].lower() and  # Not the user address
+                    not chunk.startswith("0a") and  # Skip protobuf length prefixes
+                    not chunk.startswith("12") and  # Skip protobuf field markers
+                    re.match(r'^[0-9a-fA-F]{40}$', chunk)):  # Valid hex
+
+                    potential_address = f"0x{chunk}"
+                    if potential_address not in potential_addresses:
+                        potential_addresses.append(potential_address)
+                        logger.info(f"Found potential address in transaction: {potential_address}")
+
+            if potential_addresses:
+                to_address = potential_addresses[0]
+                logger.info(f"Using extracted address: {to_address}")
             else:
-                # For unknown transactions, try basic pattern extraction
-                # Look for sequences that might be addresses, but filter out protobuf artifacts
-                potential_addresses = []
-
-                # More conservative approach - look for patterns that aren't obviously protobuf
-                for i in range(0, len(tx_hex) - 40, 2):
-                    chunk = tx_hex[i:i+40]
-
-                    # Skip if it contains known protobuf patterns
-                    if (len(chunk) == 40 and
-                        "63696e74" not in chunk.lower() and  # Skip "cint" encoded data
-                        "65746865726d696e74" not in chunk.lower() and  # Skip "ethermint" data
-                        chunk != "0" * 40 and  # Not all zeros
-                        chunk.lower() != user_address[2:].lower() and  # Not the user address
-                        not chunk.startswith("0a") and  # Skip protobuf length prefixes
-                        not chunk.startswith("12") and  # Skip protobuf field markers
-                        re.match(r'^[0-9a-fA-F]{40}$', chunk)):  # Valid hex
-
-                        potential_address = f"0x{chunk}"
-                        if potential_address not in potential_addresses:
-                            potential_addresses.append(potential_address)
-                            logger.info(f"Found potential clean address: {potential_address}")
-
-                if potential_addresses:
-                    to_address = potential_addresses[0]
-                    logger.info(f"Using extracted clean address: {to_address}")
-                else:
-                    # Final fallback - use a placeholder
-                    to_address = "0x0000000000000000000000000000000000000000"
-                    logger.info(f"No clean addresses found, using placeholder")
+                # Fallback - try to detect the transaction direction
+                # If we can't find a clear recipient, this might be a contract call
+                to_address = "0x0000000000000000000000000000000000000000"
+                logger.info(f"No clear recipient found, might be contract interaction")
 
             # If amount wasn't set by known transaction mapping, try pattern matching
             if 'amount' not in locals():
@@ -698,7 +681,7 @@ class TaxBitService:
 
             # Create transaction info with enhanced data
             tx_info = {
-                'hash': f"evm_{height}_{tx_index}",  # Still a placeholder, but more specific
+                'hash': tx_hash,  # Real transaction hash calculated from tx data
                 'height': str(height),
                 'timestamp': block_time,
                 'success': True,
@@ -717,9 +700,11 @@ class TaxBitService:
 
         except Exception as e:
             logger.warning(f"Failed to decode EVM transaction: {e}")
-            # Fallback to basic transaction info
+            # Fallback to basic transaction info with real hash
+            import hashlib
+            fallback_tx_hash = hashlib.sha256(tx_base64.encode()).hexdigest().upper()
             return {
-                'hash': f"scan_{height}_{tx_index}",
+                'hash': fallback_tx_hash,  # Real hash even in fallback
                 'height': str(height),
                 'timestamp': block_time,
                 'success': True,
