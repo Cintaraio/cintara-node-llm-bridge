@@ -685,6 +685,48 @@ class TaxBitService:
 
             # Debug: Log the hex data to understand the protobuf structure
             logger.info(f"Transaction hex data (first 200 chars): {tx_hex[:200]}...")
+            logger.info(f"Transaction hex data length: {len(tx_hex)} characters")
+
+            # Debug: Search for the known recipient address parts in the hex data
+            known_address = "676944eB6Ba099D99B7d73D9A20427740E04E3D4ccf"
+            known_parts = [
+                "676944eb",
+                "6ba099d9",
+                "9b7d73d9",
+                "a20427740e04e3d4ccf",
+                known_address.lower()
+            ]
+
+            logger.info("=== SEARCHING FOR RECIPIENT ADDRESS PATTERNS ===")
+            for part in known_parts:
+                if part.lower() in tx_hex.lower():
+                    index = tx_hex.lower().find(part.lower())
+                    logger.info(f"Found '{part}' at position {index}")
+                    # Show context around the found pattern
+                    start = max(0, index - 20)
+                    end = min(len(tx_hex), index + len(part) + 20)
+                    context = tx_hex[start:end]
+                    logger.info(f"Context: ...{context}...")
+                else:
+                    logger.info(f"'{part}' NOT FOUND in transaction hex")
+
+            logger.info("=== END RECIPIENT SEARCH ===")
+
+            # Debug: Show some decoded parts to understand structure
+            try:
+                # Try to decode some common hex patterns
+                for i in range(0, min(400, len(tx_hex)), 40):
+                    chunk = tx_hex[i:i+40]
+                    if len(chunk) == 40:
+                        try:
+                            # Try to decode as string
+                            decoded = bytes.fromhex(chunk).decode('utf-8', errors='ignore')
+                            if decoded.isprintable() and len(decoded.strip()) > 2:
+                                logger.info(f"Decoded text at pos {i}: '{decoded.strip()}'")
+                        except:
+                            pass
+            except Exception as e:
+                logger.warning(f"Error in hex analysis: {e}")
 
             # This is a protobuf-encoded Cosmos transaction containing EVM data
             # Look for common patterns in ethermint EVM transactions
