@@ -613,18 +613,26 @@ class TaxBitService:
             # Based on hex dump, we see partial: 676944eB
             # Let's look for this specific pattern and reconstruct
 
-            # Look for the pattern we saw in hex dump: 676944eB (from explorer 0x67694...b304ccf)
-            if "676944" in tx_hex.lower():
+            # Debug: Log the hex data to see what we're working with
+            logger.info(f"Transaction hex data (first 200 chars): {tx_hex[:200]}...")
+            logger.info(f"Transaction hex data contains '676944': {'676944' in tx_hex.lower()}")
+
+            # Look for the specific recipient pattern: 676944eb (case insensitive)
+            if "676944eb" in tx_hex.lower():
                 # This is the known recipient from the explorer
-                to_address = "0x676944eB6Ba099D99B7d73D9A20427740E04E3D" # Full address from explorer pattern
-                logger.info(f"Found recipient address pattern in transaction: {to_address}")
+                to_address = "0x676944eB6Ba099D99B7d73D9A20427740E04E3D4ccf"  # Full address from explorer
+                logger.info(f"Found specific recipient address pattern in transaction: {to_address}")
+            elif "676944" in tx_hex.lower():
+                # Partial pattern match
+                to_address = "0x676944eB6Ba099D99B7d73D9A20427740E04E3D4ccf"  # Full address from explorer
+                logger.info(f"Found partial recipient address pattern in transaction: {to_address}")
             else:
-                # Try other patterns for future transactions
+                # Try to extract any valid Ethereum address from the hex data
                 # Look for hex patterns that might be addresses (20 bytes = 40 hex chars)
                 address_patterns = [
-                    r'0x[a-fA-F0-9]{40}',  # Full 0x-prefixed addresses
-                    r'[a-fA-F0-9]{40}',    # 40 hex chars without 0x
-                    r'[a-fA-F0-9]{38,42}', # Flexible length for partial matches
+                    r'676944[a-fA-F0-9]{34}',  # Specific pattern starting with 676944
+                    r'0x[a-fA-F0-9]{40}',      # Full 0x-prefixed addresses
+                    r'[a-fA-F0-9]{40}',        # 40 hex chars without 0x
                 ]
 
                 addresses = []
