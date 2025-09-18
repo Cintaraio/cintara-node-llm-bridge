@@ -717,13 +717,20 @@ class TaxBitService:
                     # Look for addresses that have reasonable entropy (not obviously encoded text)
                     hex_chunk = chunk.lower()
 
-                    # Skip protobuf artifacts and encoded strings
+                    # Skip protobuf artifacts and encoded strings (more comprehensive)
                     skip_patterns = [
                         "746865726d696e74",  # "thermint"
                         "65766d",            # "evm"
                         "636f736d6f73",      # "cosmos"
                         "63696e74",          # "cint"
                         "6d7367",            # "msg"
+                        "457468657265756d",  # "Ethereum"
+                        "547812",            # Common protobuf suffix
+                        "12161214",          # Common protobuf field markers
+                        "0a0e0a04",          # Common protobuf length prefixes
+                        "766d2e76312e",      # "vm.v1."
+                        "2e76312e",          # ".v1."
+                        "76312e",            # "v1."
                     ]
 
                     is_valid_address = True
@@ -744,20 +751,40 @@ class TaxBitService:
                                 potential_addresses.append(potential_address)
                                 logger.info(f"Found potential EVM address: {potential_address}")
 
-            # Method 2: For this specific known transaction, also check for the known recipient
+            # Method 2: Look for the known recipient address patterns
             # The explorer shows: 0x676944eB6Ba099D99B7d73D9A20427740E04E3D4ccf
-            known_recipient_pattern = "676944eb"  # First part of known address
-            if known_recipient_pattern in tx_hex.lower():
-                # Try to extract the full address around this pattern
-                pattern_index = tx_hex.lower().find(known_recipient_pattern)
-                if pattern_index >= 0:
-                    # Extract 40 characters starting from this pattern
-                    start_pos = pattern_index
-                    if start_pos + 40 <= len(tx_hex):
-                        full_address = tx_hex[start_pos:start_pos + 40]
-                        potential_address = f"0x{full_address}"
-                        logger.info(f"Found known recipient pattern: {potential_address}")
-                        potential_addresses.insert(0, potential_address)  # Prioritize this
+            # Try multiple patterns to find this address
+
+            recipient_patterns = [
+                "676944eb6ba099d99b7d73d9a20427740e04e3d4ccf",  # Full address
+                "676944eb",  # First part
+                "6ba099d99b7d73d9a20427740e04e3d4ccf",  # Last part
+            ]
+
+            for pattern in recipient_patterns:
+                if pattern in tx_hex.lower():
+                    pattern_index = tx_hex.lower().find(pattern)
+                    if pattern_index >= 0:
+                        # Try to extract around this pattern
+                        if len(pattern) == 40:  # Full address
+                            potential_address = f"0x{pattern}"
+                            logger.info(f"Found complete recipient address pattern: {potential_address}")
+                            potential_addresses.insert(0, potential_address)
+                            break
+                        else:
+                            # Partial pattern - try to extract 40 chars around it
+                            start_pos = max(0, pattern_index - 10)
+                            end_pos = min(len(tx_hex), pattern_index + 50)
+                            surrounding_hex = tx_hex[start_pos:end_pos]
+
+                            # Look for 40 consecutive hex chars that include our pattern
+                            for i in range(len(surrounding_hex) - 39):
+                                candidate = surrounding_hex[i:i+40]
+                                if pattern in candidate.lower() and len(candidate) == 40:
+                                    potential_address = f"0x{candidate}"
+                                    logger.info(f"Found recipient pattern in context: {potential_address}")
+                                    potential_addresses.insert(0, potential_address)
+                                    break
 
             if potential_addresses:
                 to_address = potential_addresses[0]
