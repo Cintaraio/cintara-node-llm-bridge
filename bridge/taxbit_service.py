@@ -549,8 +549,11 @@ class TaxBitService:
                                 # Process each transaction in the block
                                 for i, tx_base64 in enumerate(txs):
                                     try:
-                                        # Decode the transaction (this is simplified - full decoding needs protobuf)
+                                        # Calculate hash for logging and identification
+                                        import hashlib
                                         tx_bytes = base64.b64decode(tx_base64)
+                                        tx_hash_debug = "0x" + hashlib.sha256(tx_bytes).hexdigest().lower()
+                                        logger.info(f"Processing transaction {i} in block {height}: hash={tx_hash_debug}")
 
                                         # Enhanced transaction decoding for EVM transactions
                                         tx_info = self._decode_evm_transaction(tx_base64, height, i, block_time, address)
@@ -591,12 +594,13 @@ class TaxBitService:
         Extracts more meaningful transaction information including real transaction hash
         """
         try:
-            # Calculate the real transaction hash (SHA256 of the base64 transaction)
-            import hashlib
-            tx_hash = hashlib.sha256(tx_base64.encode()).hexdigest().upper()
-
             # Decode the base64 transaction
             tx_bytes = base64.b64decode(tx_base64)
+
+            # Calculate the real transaction hash (SHA256 of the decoded transaction bytes)
+            # In Cosmos/Tendermint, tx hash = SHA256(raw_tx_bytes) in lowercase hex with 0x prefix
+            import hashlib
+            tx_hash = "0x" + hashlib.sha256(tx_bytes).hexdigest().lower()
 
             # Basic analysis of the transaction structure
             # Look for common patterns in EVM transactions
@@ -702,7 +706,11 @@ class TaxBitService:
             logger.warning(f"Failed to decode EVM transaction: {e}")
             # Fallback to basic transaction info with real hash
             import hashlib
-            fallback_tx_hash = hashlib.sha256(tx_base64.encode()).hexdigest().upper()
+            try:
+                fallback_tx_bytes = base64.b64decode(tx_base64)
+                fallback_tx_hash = "0x" + hashlib.sha256(fallback_tx_bytes).hexdigest().lower()
+            except:
+                fallback_tx_hash = f"fallback_{height}_{tx_index}"
             return {
                 'hash': fallback_tx_hash,  # Real hash even in fallback
                 'height': str(height),
