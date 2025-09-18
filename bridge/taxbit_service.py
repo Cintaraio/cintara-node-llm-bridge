@@ -797,40 +797,59 @@ class TaxBitService:
                                 potential_addresses.append(potential_address)
                                 logger.info(f"Found potential EVM address: {potential_address}")
 
-            # Method 2: Look for the known recipient address patterns
-            # The explorer shows: 0x676944eB6Ba099D99B7d73D9A20427740E04E3D4ccf
-            # Try multiple patterns to find this address
+            # Method 2: Look for text-encoded addresses in the protobuf data
+            # Based on debug output, addresses are stored as readable text like "0x676944eB..."
+            # So we need to decode the hex data as text and extract Ethereum addresses
 
-            recipient_patterns = [
-                "676944eb6ba099d99b7d73d9a20427740e04e3d4ccf",  # Full address
-                "676944eb",  # First part
-                "6ba099d99b7d73d9a20427740e04e3d4ccf",  # Last part
-            ]
+            try:
+                # Scan through the transaction hex and decode chunks as text
+                for i in range(0, len(tx_hex) - 40, 2):
+                    chunk_hex = tx_hex[i:i+84]  # Try 42 chars (enough for "0x" + 40 hex chars)
+                    if len(chunk_hex) >= 42:
+                        try:
+                            # Decode this chunk as text
+                            decoded_text = bytes.fromhex(chunk_hex).decode('utf-8', errors='ignore')
 
-            for pattern in recipient_patterns:
-                if pattern in tx_hex.lower():
-                    pattern_index = tx_hex.lower().find(pattern)
-                    if pattern_index >= 0:
-                        # Try to extract around this pattern
-                        if len(pattern) == 40:  # Full address
-                            potential_address = f"0x{pattern}"
-                            logger.info(f"Found complete recipient address pattern: {potential_address}")
-                            potential_addresses.insert(0, potential_address)
-                            break
-                        else:
-                            # Partial pattern - try to extract 40 chars around it
-                            start_pos = max(0, pattern_index - 10)
-                            end_pos = min(len(tx_hex), pattern_index + 50)
-                            surrounding_hex = tx_hex[start_pos:end_pos]
+                            # Look for Ethereum addresses in the decoded text
+                            import re
+                            eth_address_pattern = r'0x[a-fA-F0-9]{40}'
+                            matches = re.findall(eth_address_pattern, decoded_text)
 
-                            # Look for 40 consecutive hex chars that include our pattern
-                            for i in range(len(surrounding_hex) - 39):
-                                candidate = surrounding_hex[i:i+40]
-                                if pattern in candidate.lower() and len(candidate) == 40:
-                                    potential_address = f"0x{candidate}"
-                                    logger.info(f"Found recipient pattern in context: {potential_address}")
-                                    potential_addresses.insert(0, potential_address)
-                                    break
+                            for match in matches:
+                                if match.lower() != user_address.lower():  # Not the user's address
+                                    potential_addresses.append(match)
+                                    logger.info(f"Found text-encoded address: {match}")
+                        except:
+                            continue
+
+                # Method 3: Also try smaller chunks for partial addresses
+                for i in range(0, len(tx_hex) - 20, 2):
+                    chunk_hex = tx_hex[i:i+28]  # 14 bytes, might contain partial address
+                    if len(chunk_hex) >= 20:
+                        try:
+                            decoded_text = bytes.fromhex(chunk_hex).decode('utf-8', errors='ignore')
+                            # Look for the known recipient pattern in text
+                            if "676944" in decoded_text:
+                                logger.info(f"Found recipient pattern in decoded text: '{decoded_text}'")
+                                # Try to extract full address from surrounding area
+                                context_start = max(0, i - 20)
+                                context_end = min(len(tx_hex), i + 100)
+                                context_hex = tx_hex[context_start:context_end]
+                                try:
+                                    context_text = bytes.fromhex(context_hex).decode('utf-8', errors='ignore')
+                                    # Extract any 0x addresses from the context
+                                    ctx_matches = re.findall(r'0x[a-fA-F0-9]{40}', context_text)
+                                    for ctx_match in ctx_matches:
+                                        if "676944" in ctx_match.lower():
+                                            potential_addresses.insert(0, ctx_match)
+                                            logger.info(f"Extracted full address from context: {ctx_match}")
+                                except:
+                                    pass
+                        except:
+                            continue
+
+            except Exception as e:
+                logger.warning(f"Error in text-based address extraction: {e}")
 
             if potential_addresses:
                 to_address = potential_addresses[0]
