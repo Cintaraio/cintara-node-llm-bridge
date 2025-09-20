@@ -49,18 +49,19 @@ if [ ! -f "$DATA_DIR/.tmp-cintarad/config/genesis.json" ]; then
     # Try multiple approaches to automate the script
     echo "🔧 Attempting automated setup with elevated permissions..."
 
-    # Method 1: Run with sudo to handle permission issues
-    timeout 300 sudo -E bash -c "echo -e '$MONIKER\npassword123\ny\n' | ./cintara_ubuntu_node.sh" 2>/dev/null || \
-    # Method 2: Direct execution with timeout
-    timeout 300 bash cintara_ubuntu_node.sh "$MONIKER" "password123" "y" 2>/dev/null || \
-    # Method 3: Pipe responses
+    # Method 1: Force overwrite existing data for clean setup
     timeout 300 bash -c "echo -e '$MONIKER\npassword123\ny\n' | ./cintara_ubuntu_node.sh" 2>/dev/null || \
-    # Method 4: Here document approach
-    timeout 300 bash cintara_ubuntu_node.sh 2>/dev/null <<EOF || {
-$MONIKER
-password123
-y
-EOF
+    # Method 2: Try with expect-like approach
+    timeout 300 bash -c "printf '%s\n%s\n%s\n' '$MONIKER' 'password123' 'y' | ./cintara_ubuntu_node.sh" 2>/dev/null || \
+    # Method 3: Use yes command for automatic 'y' responses
+    timeout 300 bash -c "yes | ./cintara_ubuntu_node.sh '$MONIKER'" 2>/dev/null || \
+    # Method 4: Clean data directory and retry
+    {
+        echo "🧹 Cleaning existing data directory..."
+        rm -rf /data/.tmp-cintarad
+        rm -rf "$DATA_DIR/.tmp-cintarad"
+        timeout 300 bash -c "echo -e '$MONIKER\npassword123\ny\n' | ./cintara_ubuntu_node.sh" 2>/dev/null
+    } || {
         echo "❌ Official setup script failed. Trying alternative approach..."
 
         # Alternative: Try to run setup manually step by step
