@@ -1,74 +1,47 @@
 services:
-  # Cintara Blockchain Node
-  cintara-node:
-    image: ${CINTARA_NODE_IMAGE:-public.ecr.aws/b8j2u1c6/cintaraio/cintara-node:latest}
-    container_name: cintara-blockchain-node
-    restart: unless-stopped
-    privileged: true
-    user: "0:0"
-    environment:
-      - CHAIN_ID=${CHAIN_ID:-cintara_11001-1}
-      - MONIKER=${MONIKER:-cintara-docker-node}
-      - KEYRING_BACKEND=test
-    volumes:
-      - cintara_data:/home/cintara/data
-      - /data:/data
-    ports:
-      - "26656:26656"
-      - "26657:26657"
-      - "1317:1317"
-      - "9090:9090"
-    healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:26657/status > /dev/null || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 120s
-    networks:
-      - cintara-network
-
   # Model Download Service - Downloads and initializes LLM model
   model-downloader:
     image: alpine:3.19
     container_name: cintara-model-downloader
     working_dir: /models
-    command: >
-      sh -c '
-        if [ ! -f "/models/$${MODEL_FILE:-tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf}" ]; then
-          echo "Downloading AI model...";
-          apk add --no-cache wget;
-          wget -O "$${MODEL_FILE:-tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf}" "https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF/resolve/main/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf";
-          echo "Model download completed";
+    command:
+      - sh
+      - -c
+      - |
+        if [ ! -f "/models/$$MODEL_FILE" ]; then
+          echo "Downloading AI model..."
+          apk add --no-cache wget
+          wget -O "$$MODEL_FILE" "https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF/resolve/main/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf"
+          echo "Model download completed"
         else
-          echo "Model already exists, skipping download";
+          echo "Model already exists, skipping download"
         fi
-      '
     volumes:
       - ./models:/models
     environment:
-      - MODEL_FILE=${MODEL_FILE:-tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf}
+      - MODEL_FILE=tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf
     networks:
       - cintara-network
 
   # LLM Server (CPU-based with llama.cpp)
   llama:
-    image: ${LLAMA_REPO:-ghcr.io/ggerganov/llama.cpp:server}@${LLAMA_DIGEST:-sha256:42d562e394e22fc1b05d6f0ee9179b276b80a115217c8d668dc8c2fc5b1302ac}
+    image: ghcr.io/ggerganov/llama.cpp:server@sha256:42d562e394e22fc1b05d6f0ee9179b276b80a115217c8d668dc8c2fc5b1302ac
     container_name: cintara-llm
     restart: unless-stopped
     command:
-      - "--model"
-      - "/models/${MODEL_FILE:-tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf}"
-      - "--ctx-size"
-      - "${CTX_SIZE:-1024}"
-      - "--threads"
-      - "${LLM_THREADS:-4}"
-      - "--host"
-      - "0.0.0.0"
-      - "--port"
+      - --model
+      - /models/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf
+      - --ctx-size
+      - "1024"
+      - --threads
+      - "4"
+      - --host
+      - 0.0.0.0
+      - --port
       - "8000"
-      - "--n-predict"
+      - --n-predict
       - "256"
-      - "--verbose"
+      - --verbose
     volumes:
       - ./models:/models:ro
     environment:
@@ -80,14 +53,14 @@ services:
       retries: 5
       start_period: 120s
     ports:
-      - "8000:8000"  # LLM API port
+      - "8000:8000"
     deploy:
       resources:
         limits:
-          cpus: '2.0'  # Use only 2 CPUs
-          memory: 3G   # Minimal memory allocation
+          cpus: '2.0'
+          memory: 3G
         reservations:
-          cpus: '1.0'  # Reserve only 1 CPU
+          cpus: '1.0'
           memory: 2G
     depends_on:
       model-downloader:
@@ -95,22 +68,20 @@ services:
     networks:
       - cintara-network
 
-  # AI Bridge - Connects to local Cintara node
+  # AI Bridge - Connects to manually run Cintara node
   bridge:
     image: ${BRIDGE_IMAGE:-public.ecr.aws/b8j2u1c6/cintaraio/cintara-ai-bridge:latest}
     container_name: cintara-ai-bridge
     restart: unless-stopped
     environment:
       - LLAMA_SERVER_URL=http://llama:8000
-      - CINTARA_NODE_URL=http://cintara-node:26657  # Local containerized Cintara node
+      - CINTARA_NODE_URL=http://host.docker.internal:26657  # Connect to manually run node on host
       - LOG_PATH=/app/logs
       - AI_FEATURES_ENABLED=true
     ports:
-      - "8080:8080"  # AI Bridge API port
+      - "8080:8080"
     depends_on:
       llama:
-        condition: service_healthy
-      cintara-node:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:8080/health > /dev/null || exit 1"]
