@@ -2,7 +2,6 @@ FROM ubuntu:22.04
 
 # Set environment variables
 ENV DEBIAN_FRONTEND=noninteractive
-ENV HOME=/home/cintara
 ENV CHAIN_ID=cintara_11001-1
 ENV MONIKER=cintara-docker-node
 
@@ -38,9 +37,19 @@ RUN chmod +x cintara_ubuntu_node.sh
 # Create data directory for blockchain data
 RUN mkdir -p /home/cintara/data
 
+# Switch back to root to copy files and set permissions
+USER root
+
 # Copy our initialization script
 COPY init-node.sh /home/cintara/init-node.sh
-RUN chmod +x /home/cintara/init-node.sh
+
+# Set correct ownership and permissions
+RUN chown cintara:cintara /home/cintara/init-node.sh && \
+    chmod +x /home/cintara/init-node.sh
+
+# Switch back to cintara user
+USER cintara
+WORKDIR /home/cintara
 
 # Expose required ports
 EXPOSE 26656 26657 1317 9090
