@@ -15,6 +15,8 @@ RUN apt-get update && apt-get install -y \
     build-essential \
     git \
     sudo \
+    expect \
+    coreutils \
     && rm -rf /var/lib/apt/lists/*
 
 # Create cintara user with sudo privileges - as per official guide
@@ -40,19 +42,27 @@ RUN mkdir -p /home/cintara/data
 # Switch back to root to copy files and set permissions
 USER root
 
-# Copy our initialization script
+# Create /data directory that the script expects and set permissions
+RUN mkdir -p /data && \
+    chown cintara:cintara /data && \
+    chmod 755 /data
+
+# Copy our initialization scripts
 COPY init-node.sh /home/cintara/init-node.sh
+COPY entrypoint.sh /entrypoint.sh
 
 # Set correct ownership and permissions
 RUN chown cintara:cintara /home/cintara/init-node.sh && \
-    chmod +x /home/cintara/init-node.sh
+    chmod +x /home/cintara/init-node.sh && \
+    chmod +x /entrypoint.sh
 
-# Switch back to cintara user
+# Switch back to cintara user for non-privileged operations
 USER cintara
 WORKDIR /home/cintara
 
 # Expose required ports
 EXPOSE 26656 26657 1317 9090
 
-# Run our initialization script
-CMD ["/home/cintara/init-node.sh"]
+# Use root entrypoint to handle permissions, then switch to cintara user
+USER root
+CMD ["/entrypoint.sh"]
