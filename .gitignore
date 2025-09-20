@@ -15,6 +15,9 @@ logs/
 
 # Docker
 docker-compose.override.yml
+docker-images/
+*.tar
+*.tar.gz
 
 # System files
 .DS_Store
