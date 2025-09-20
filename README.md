@@ -31,14 +31,20 @@ cd cintara-node-llm-bridge
 cp .env.example .env
 # Edit .env if you want to customize node name or other settings
 
-# 3. Start all services (includes automatic model download and blockchain sync)
+# 3. Run Cintara node manually (recommended for permission stability)
+sudo docker run -d --name cintara-blockchain-node --privileged --network host \
+  -v /data:/data -v /home/cintara/data:/home/cintara/data \
+  -e CHAIN_ID=cintara_11001-1 -e MONIKER=ec2-cintara-node \
+  public.ecr.aws/b8j2u1c6/cintaraio/cintara-node:latest
+
+# 4. Start other services (LLM and AI Bridge)
 docker compose up -d
 
-# 4. Monitor startup progress (blockchain sync may take 30-60 minutes)
+# 5. Monitor startup progress (blockchain sync may take 30-60 minutes)
 docker compose logs -f model-downloader  # Watch model download (2-3 minutes)
-docker compose logs -f cintara-node      # Watch blockchain sync progress
+docker logs -f cintara-blockchain-node   # Watch blockchain sync progress
 
-# 5. Verify everything works
+# 6. Verify everything works
   # Test Cintara node
   curl http://localhost:26657/status | jq .result.sync_info
 
