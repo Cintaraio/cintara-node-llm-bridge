@@ -1,8 +1,7 @@
 services:
   # Cintara Blockchain Node
   cintara-node:
-
-    image: ${CINTARA_NODE_IMAGE:-cintaraio/cintara-node:latest}
+    image: ${CINTARA_NODE_IMAGE:-public.ecr.aws/b8j2u1c6/cintaraio/cintara-node:latest}
     container_name: cintara-blockchain-node
     restart: unless-stopped
     environment:
@@ -90,8 +89,7 @@ services:
 
   # AI Bridge - Connects to local Cintara node
   bridge:
-
-    image: ${BRIDGE_IMAGE:-cintaraio/cintara-ai-bridge:latest}
+    image: ${BRIDGE_IMAGE:-public.ecr.aws/b8j2u1c6/cintaraio/cintara-ai-bridge:latest}
     container_name: cintara-ai-bridge
     restart: unless-stopped
     environment:
