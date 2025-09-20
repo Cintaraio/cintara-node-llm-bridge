@@ -104,8 +104,8 @@ jobs:
         echo "Updating docker-compose.yml to use images with tag: $TAG"
 
         # Update the default image references in docker-compose.yml
-        sed -i "s|ghcr.io/cintaraio/cintara-node:.*|ghcr.io/cintaraio/cintara-node:$TAG}|g" docker-compose.yml
-        sed -i "s|ghcr.io/cintaraio/cintara-ai-bridge:.*|ghcr.io/cintaraio/cintara-ai-bridge:$TAG}|g" docker-compose.yml
+        sed -i "s|ghcr.io/cintaraio/cintara-node:.*|ghcr.io/cintaraio/cintara-node:$TAG|g" docker-compose.yml
+        sed -i "s|ghcr.io/cintaraio/cintara-ai-bridge:.*|ghcr.io/cintaraio/cintara-ai-bridge:$TAG|g" docker-compose.yml
 
         # Update .env.example as well
         sed -i "s|ghcr.io/cintaraio/cintara-node:.*|ghcr.io/cintaraio/cintara-node:$TAG|g" .env.example
