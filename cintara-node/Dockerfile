@@ -2,46 +2,48 @@ FROM ubuntu:22.04
 
 # Set environment variables
 ENV DEBIAN_FRONTEND=noninteractive
-ENV HOME=/root
+ENV HOME=/home/cintara
 ENV CHAIN_ID=cintara_11001-1
 ENV MONIKER=cintara-docker-node
 
-# Install dependencies
+# Install dependencies - exactly as per official guide
 RUN apt-get update && apt-get install -y \
     curl \
-    wget \
-    git \
-    build-essential \
     jq \
+    bash \
+    wget \
     unzip \
+    build-essential \
+    git \
+    sudo \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Go
-RUN wget https://go.dev/dl/go1.21.6.linux-amd64.tar.gz && \
-    tar -C /usr/local -xzf go1.21.6.linux-amd64.tar.gz && \
-    rm go1.21.6.linux-amd64.tar.gz
+# Create cintara user with sudo privileges - as per official guide
+RUN useradd -ms /bin/bash cintara && \
+    echo "cintara ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 
-ENV PATH="/usr/local/go/bin:${PATH}"
-ENV GOPATH="/root/go"
-ENV GOBIN="/root/go/bin"
+# Switch to cintara user
+USER cintara
+WORKDIR /home/cintara
 
-# Clone and build Cintara
-RUN git clone https://github.com/Cintaraio/cintara.git /root/cintara && \
-    cd /root/cintara && \
-    make install
+# Clone the official cintara-testnet-script repository
+RUN git clone https://github.com/Cintaraio/cintara-testnet-script.git
 
-# Create working directory
-WORKDIR /root
+# Set working directory to the cloned repository
+WORKDIR /home/cintara/cintara-testnet-script
 
-# Copy initialization script
-COPY init-node.sh /root/init-node.sh
-RUN chmod +x /root/init-node.sh
+# Make the setup script executable
+RUN chmod +x cintara_ubuntu_node.sh
 
-# Create data directory
-RUN mkdir -p /root/.cintarad
+# Create data directory for blockchain data
+RUN mkdir -p /home/cintara/data
 
-# Expose ports
+# Copy our initialization script
+COPY init-node.sh /home/cintara/init-node.sh
+RUN chmod +x /home/cintara/init-node.sh
+
+# Expose required ports
 EXPOSE 26656 26657 1317 9090
 
-# Initialize and start node
-CMD ["/root/init-node.sh"]
+# Run our initialization script
+CMD ["/home/cintara/init-node.sh"]

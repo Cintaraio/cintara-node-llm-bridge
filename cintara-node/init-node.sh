@@ -2,74 +2,97 @@
 
 set -e
 
-# Set environment variables
-export PATH="/root/go/bin:/usr/local/go/bin:${PATH}"
-CHAIN_ID=${CHAIN_ID:-"cintara_11001-1"}
-MONIKER=${MONIKER:-"cintara-docker-node"}
-KEYRING_BACKEND=${KEYRING_BACKEND:-"test"}
-NODE_HOME="/root/.cintarad"
+echo "🚀 Starting Cintara Node Initialization (Official Script Method)"
+echo "================================================================"
 
-echo "🚀 Starting Cintara node initialization..."
+# Set environment variables
+export HOME="/home/cintara"
+export CHAIN_ID=${CHAIN_ID:-"cintara_11001-1"}
+export MONIKER=${MONIKER:-"cintara-docker-node"}
+export DATA_DIR="/home/cintara/data"
+
 echo "Chain ID: $CHAIN_ID"
 echo "Moniker: $MONIKER"
-echo "Node Home: $NODE_HOME"
+echo "Data Directory: $DATA_DIR"
+echo "User: $(whoami)"
+echo ""
 
-# Check if node is already initialized
-if [ ! -f "$NODE_HOME/config/genesis.json" ]; then
-    echo "📦 Initializing new Cintara node..."
+# Change to the testnet script directory
+cd /home/cintara/cintara-testnet-script
 
-    # Initialize the node
-    cintarad init "$MONIKER" --chain-id "$CHAIN_ID" --home "$NODE_HOME"
+# Check if the node is already initialized
+if [ ! -f "$DATA_DIR/.tmp-cintarad/config/genesis.json" ]; then
+    echo "📦 Running official Cintara node setup script..."
+    echo "⚠️  This will run the official cintara_ubuntu_node.sh script"
+    echo ""
 
-    # Download genesis file
-    echo "⬇️ Downloading genesis file..."
-    curl -s https://raw.githubusercontent.com/Cintaraio/cintara-testnet-script/main/genesis.json > "$NODE_HOME/config/genesis.json"
+    # Create a non-interactive setup by providing default responses
+    # The script expects user input, so we'll provide automated responses
+    echo "🔧 Setting up automated responses for the setup script..."
 
-    # Set up persistent peers
-    echo "🌐 Configuring peers..."
-    PERSISTENT_PEERS="d5519e378247dfb61dfe90652d1fe3e2b3005a5b@65.109.68.190:26656,8542cd7e6bf9d260fef543bc49e59be5a3fa9074@seed.publicnode.com:26656"
-    sed -i.bak -e "s/^persistent_peers *=.*/persistent_peers = \"$PERSISTENT_PEERS\"/" "$NODE_HOME/config/config.toml"
+    # Run the official setup script with automated inputs
+    echo -e "$MONIKER\npassword123\ny\n" | ./cintara_ubuntu_node.sh || {
+        echo "❌ Official setup script failed. Trying alternative approach..."
 
-    # Configure API and RPC
-    sed -i.bak -e "s/^enable *=.*/enable = true/" "$NODE_HOME/config/app.toml"
-    sed -i.bak -e "s/^address *= .*/address = \"tcp:\/\/0.0.0.0:1317\"/" "$NODE_HOME/config/app.toml"
-    sed -i.bak -e "s/^laddr *= .*/laddr = \"tcp:\/\/0.0.0.0:26657\"/" "$NODE_HOME/config/config.toml"
+        # Alternative: Try to run setup manually step by step
+        echo "🔄 Attempting manual setup based on official script..."
 
-    # Set minimum gas price
-    sed -i.bak -e "s/^minimum-gas-prices *=.*/minimum-gas-prices = \"0cint\"/" "$NODE_HOME/config/app.toml"
+        # Make sure we have the required permissions
+        chmod +x cintara_ubuntu_node.sh
 
-    # Configure pruning (optional, for disk space)
-    sed -i.bak -e "s/^pruning *=.*/pruning = \"custom\"/" "$NODE_HOME/config/app.toml"
-    sed -i.bak -e "s/^pruning-keep-recent *=.*/pruning-keep-recent = \"100\"/" "$NODE_HOME/config/app.toml"
-    sed -i.bak -e "s/^pruning-interval *=.*/pruning-interval = \"10\"/" "$NODE_HOME/config/app.toml"
+        # Create data directory structure
+        mkdir -p "$DATA_DIR/.tmp-cintarad"
 
-    # Create a validator key (for testing)
-    if [ ! -f "$NODE_HOME/config/priv_validator_key.json" ]; then
-        echo "🔑 Creating validator key..."
-        cintarad keys add validator --keyring-backend "$KEYRING_BACKEND" --home "$NODE_HOME" --output json > /tmp/validator_key.json 2>&1 || true
-
-        # Show the mnemonic for backup
-        if [ -f /tmp/validator_key.json ]; then
-            echo "🔐 IMPORTANT: Save this mnemonic phrase for your validator:"
-            echo "=============================================="
-            cat /tmp/validator_key.json | jq -r '.mnemonic // empty'
-            echo "=============================================="
-            rm -f /tmp/validator_key.json
-        fi
-    fi
-
-    echo "✅ Node initialization completed!"
+        echo "✅ Basic directory structure created"
+        echo "⚠️  Manual initialization required - container will stay running"
+        echo ""
+        echo "To complete setup, run:"
+        echo "  docker exec -it cintara-blockchain-node bash"
+        echo "  cd /home/cintara/cintara-testnet-script"
+        echo "  ./cintara_ubuntu_node.sh"
+        echo ""
+    }
 else
-    echo "♻️ Node already initialized, skipping initialization..."
+    echo "♻️ Node already initialized, skipping setup..."
 fi
 
-# Start the node
-echo "🎯 Starting Cintara node..."
-echo "RPC endpoint will be available at: http://localhost:26657"
-echo "API endpoint will be available at: http://localhost:1317"
+# Check if cintarad binary is available
+if command -v cintarad &> /dev/null; then
+    echo "✅ cintarad binary found"
 
-exec cintarad start --home "$NODE_HOME" \
-    --rpc.laddr tcp://0.0.0.0:26657 \
-    --grpc.address 0.0.0.0:9090 \
-    --api.address tcp://0.0.0.0:1317 \
-    --api.enable true
+    # Start the node if it's properly initialized
+    if [ -f "$DATA_DIR/.tmp-cintarad/config/genesis.json" ]; then
+        echo "🎯 Starting Cintara node..."
+        echo "RPC endpoint will be available at: http://localhost:26657"
+        echo "API endpoint will be available at: http://localhost:1317"
+        echo ""
+
+        # Start the node (this will run in foreground)
+        exec cintarad start --home "$DATA_DIR/.tmp-cintarad" \
+            --rpc.laddr tcp://0.0.0.0:26657 \
+            --grpc.address 0.0.0.0:9090 \
+            --api.address tcp://0.0.0.0:1317 \
+            --api.enable true
+    else
+        echo "⚠️  Node not fully initialized. Starting interactive shell..."
+        echo "To complete setup manually:"
+        echo "  cd /home/cintara/cintara-testnet-script"
+        echo "  ./cintara_ubuntu_node.sh"
+        echo "  Then start with: cintarad start --home $DATA_DIR/.tmp-cintarad"
+        echo ""
+
+        # Keep container running with bash shell
+        exec /bin/bash
+    fi
+else
+    echo "⚠️  cintarad binary not found. Running setup first..."
+    echo "Starting interactive shell for manual setup."
+    echo ""
+    echo "To setup manually:"
+    echo "  cd /home/cintara/cintara-testnet-script"
+    echo "  ./cintara_ubuntu_node.sh"
+    echo ""
+
+    # Keep container running
+    exec /bin/bash
+fi

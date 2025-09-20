@@ -9,7 +9,7 @@ services:
       - MONIKER=${MONIKER:-cintara-docker-node}
       - KEYRING_BACKEND=test
     volumes:
-      - cintara_data:/root/.cintarad
+      - cintara_data:/home/cintara/data
     ports:
       - "26656:26656"  # P2P port
       - "26657:26657"  # RPC port
