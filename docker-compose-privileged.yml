@@ -27,7 +27,7 @@ services:
     networks:
       - cintara-network
 
-  # Model Download Service - Downloads and initializes LLM model
+  # Model Download Service
   model-downloader:
     image: alpine:3.19
     container_name: cintara-model-downloader
@@ -50,7 +50,7 @@ services:
     networks:
       - cintara-network
 
-  # LLM Server (CPU-based with llama.cpp)
+  # LLM Server
   llama:
     image: ${LLAMA_REPO:-ghcr.io/ggerganov/llama.cpp:server}@${LLAMA_DIGEST:-sha256:42d562e394e22fc1b05d6f0ee9179b276b80a115217c8d668dc8c2fc5b1302ac}
     container_name: cintara-llm
@@ -80,14 +80,14 @@ services:
       retries: 5
       start_period: 120s
     ports:
-      - "8000:8000"  # LLM API port
+      - "8000:8000"
     deploy:
       resources:
         limits:
-          cpus: '2.0'  # Use only 2 CPUs
-          memory: 3G   # Minimal memory allocation
+          cpus: '2.0'
+          memory: 3G
         reservations:
-          cpus: '1.0'  # Reserve only 1 CPU
+          cpus: '1.0'
           memory: 2G
     depends_on:
       model-downloader:
@@ -95,18 +95,18 @@ services:
     networks:
       - cintara-network
 
-  # AI Bridge - Connects to local Cintara node
+  # AI Bridge
   bridge:
     image: ${BRIDGE_IMAGE:-public.ecr.aws/b8j2u1c6/cintaraio/cintara-ai-bridge:latest}
     container_name: cintara-ai-bridge
     restart: unless-stopped
     environment:
       - LLAMA_SERVER_URL=http://llama:8000
-      - CINTARA_NODE_URL=http://cintara-node:26657  # Local containerized Cintara node
+      - CINTARA_NODE_URL=http://cintara-node:26657
       - LOG_PATH=/app/logs
       - AI_FEATURES_ENABLED=true
     ports:
-      - "8080:8080"  # AI Bridge API port
+      - "8080:8080"
     depends_on:
       llama:
         condition: service_healthy
@@ -120,12 +120,10 @@ services:
     networks:
       - cintara-network
 
-# Networks
 networks:
   cintara-network:
     driver: bridge
 
-# Volumes
 volumes:
   cintara_data:
     driver: local
