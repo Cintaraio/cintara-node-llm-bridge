@@ -9,8 +9,8 @@ on:
   workflow_dispatch:  # Allow manual triggering
 
 env:
-  REGISTRY: ghcr.io
-  NAMESPACE: ${{ github.repository_owner }}
+  REGISTRY: docker.io
+  NAMESPACE: cintaraio
 
 jobs:
   build-images:
@@ -38,29 +38,11 @@ jobs:
       with:
         platforms: linux/amd64,linux/arm64
 
-    - name: Log in to Container Registry
+    - name: Log in to Docker Hub
       uses: docker/login-action@v3
       with:
-        registry: ${{ env.REGISTRY }}
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
-
-    - name: Delete existing private package (if exists)
-      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-      continue-on-error: true
-      run: |
-        # Try to delete existing private package to recreate as public
-        gh api --method DELETE \
-          -H "Accept: application/vnd.github+json" \
-          -H "X-GitHub-Api-Version: 2022-11-28" \
-          /user/packages/container/${{ matrix.image.name }} || \
-        gh api --method DELETE \
-          -H "Accept: application/vnd.github+json" \
-          -H "X-GitHub-Api-Version: 2022-11-28" \
-          /orgs/${{ github.repository_owner }}/packages/container/${{ matrix.image.name }} || \
-        echo "Package doesn't exist or couldn't be deleted - continuing"
-      env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
 
     - name: Extract metadata
       id: meta
@@ -86,28 +68,6 @@ jobs:
         labels: ${{ steps.meta.outputs.labels }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
-
-    - name: Make package public
-      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-      run: |
-        # Make the package public using GitHub CLI
-        # Try both user and organization endpoints
-        gh api --method PATCH \
-          -H "Accept: application/vnd.github+json" \
-          -H "X-GitHub-Api-Version: 2022-11-28" \
-          /user/packages/container/${{ matrix.image.name }} \
-          -f visibility=public || \
-        gh api --method PATCH \
-          -H "Accept: application/vnd.github+json" \
-          -H "X-GitHub-Api-Version: 2022-11-28" \
-          /orgs/${{ github.repository_owner }}/packages/container/${{ matrix.image.name }} \
-          -f visibility=public || \
-        echo "Could not make package public - may require manual intervention"
-
-        # Also try to set package as public during metadata setup
-        echo "Package should be public after this build"
-      env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Generate image summary
       run: |
@@ -143,12 +103,12 @@ jobs:
         echo "Updating docker-compose.yml to use images with tag: $TAG"
 
         # Update the default image references in docker-compose.yml
-        sed -i "s|ghcr.io/cintaraio/cintara-node:.*|ghcr.io/cintaraio/cintara-node:$TAG|g" docker-compose.yml
-        sed -i "s|ghcr.io/cintaraio/cintara-ai-bridge:.*|ghcr.io/cintaraio/cintara-ai-bridge:$TAG|g" docker-compose.yml
+        sed -i "s|ghcr.io/cintaraio/cintara-node:.*|cintaraio/cintara-node:$TAG|g" docker-compose.yml
+        sed -i "s|ghcr.io/cintaraio/cintara-ai-bridge:.*|cintaraio/cintara-ai-bridge:$TAG|g" docker-compose.yml
 
         # Update .env.example as well
-        sed -i "s|ghcr.io/cintaraio/cintara-node:.*|ghcr.io/cintaraio/cintara-node:$TAG|g" .env.example
-        sed -i "s|ghcr.io/cintaraio/cintara-ai-bridge:.*|ghcr.io/cintaraio/cintara-ai-bridge:$TAG|g" .env.example
+        sed -i "s|ghcr.io/cintaraio/cintara-node:.*|cintaraio/cintara-node:$TAG|g" .env.example
+        sed -i "s|ghcr.io/cintaraio/cintara-ai-bridge:.*|cintaraio/cintara-ai-bridge:$TAG|g" .env.example
 
     - name: Commit updated files
       run: |
@@ -203,7 +163,7 @@ jobs:
     - name: Run Trivy vulnerability scanner
       uses: aquasecurity/trivy-action@master
       with:
-        image-ref: 'ghcr.io/cintaraio/${{ matrix.image }}:main'
+        image-ref: 'cintaraio/${{ matrix.image }}:main'
         format: 'sarif'
         output: 'trivy-results-${{ matrix.image }}.sarif'
 
