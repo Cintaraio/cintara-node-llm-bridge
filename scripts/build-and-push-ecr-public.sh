@@ -48,29 +48,21 @@ aws ecr-public get-login-password --region us-east-1 --profile $AWS_PROFILE | do
 echo ""
 echo "🏗️  Building Docker images..."
 
-# Build images
-echo "📦 Building Cintara Node image..."
-docker build -t $CINTARA_NODE_REPO:latest ./cintara-node/
+# Build images for multiple platforms
+echo "📦 Building Cintara Node image for AMD64 and ARM64..."
+docker buildx create --use --name multiplatform || docker buildx use multiplatform
 
-echo "📦 Building AI Bridge image..."
-docker build -t $BRIDGE_REPO:latest ./bridge/
+docker buildx build --platform linux/amd64,linux/arm64 \
+  -t $ECR_PUBLIC_REGISTRY/$REGISTRY_ALIAS/$NAMESPACE/$CINTARA_NODE_REPO:latest \
+  --push ./cintara-node/
+
+echo "📦 Building AI Bridge image for AMD64 and ARM64..."
+docker buildx build --platform linux/amd64,linux/arm64 \
+  -t $ECR_PUBLIC_REGISTRY/$REGISTRY_ALIAS/$NAMESPACE/$BRIDGE_REPO:latest \
+  --push ./bridge/
 
 echo ""
-echo "🏷️  Tagging images for ECR Public..."
-
-# Tag images for ECR Public
-docker tag $CINTARA_NODE_REPO:latest $ECR_PUBLIC_REGISTRY/$REGISTRY_ALIAS/$NAMESPACE/$CINTARA_NODE_REPO:latest
-docker tag $BRIDGE_REPO:latest $ECR_PUBLIC_REGISTRY/$REGISTRY_ALIAS/$NAMESPACE/$BRIDGE_REPO:latest
-
-echo ""
-echo "🚀 Pushing images to ECR Public..."
-
-# Push images
-echo "📤 Pushing cintara-node..."
-docker push $ECR_PUBLIC_REGISTRY/$REGISTRY_ALIAS/$NAMESPACE/$CINTARA_NODE_REPO:latest
-
-echo "📤 Pushing cintara-ai-bridge..."
-docker push $ECR_PUBLIC_REGISTRY/$REGISTRY_ALIAS/$NAMESPACE/$BRIDGE_REPO:latest
+echo "✅ Multi-platform images built and pushed directly to ECR Public!"
 
 echo ""
 echo "✅ SUCCESS! Images pushed to AWS ECR Public:"
