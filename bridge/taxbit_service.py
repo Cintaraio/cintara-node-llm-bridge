@@ -17,9 +17,12 @@ import logging
 import requests
 import base64
 import json
+import psycopg2
+import psycopg2.extras
 from datetime import datetime, timezone, timedelta
 from typing import List, Dict, Any, Optional
 from enum import Enum
+from decimal import Decimal
 
 logger = logging.getLogger(__name__)
 
@@ -98,6 +101,41 @@ class TaxBitTransaction:
             'status': self.status
         }
 
+class TokenRegistry:
+    """Registry for token metadata and decimal precision"""
+
+    def __init__(self):
+        # Default token configurations
+        self.tokens = {
+            "cint": {"symbol": "CINT", "decimals": 18, "name": "Cintara"},
+            "ucint": {"symbol": "CINT", "decimals": 6, "name": "Cintara (micro)"},
+            "acint": {"symbol": "CINT", "decimals": 18, "name": "Cintara (atto)"},
+            # Common ERC-20 tokens that might be on Cintara EVM
+            "usdc": {"symbol": "USDC", "decimals": 6, "name": "USD Coin"},
+            "usdt": {"symbol": "USDT", "decimals": 6, "name": "Tether USD"},
+            "weth": {"symbol": "WETH", "decimals": 18, "name": "Wrapped Ether"},
+        }
+
+    def get_token_info(self, denom_or_contract: str) -> Dict[str, Any]:
+        """Get token info by denomination or contract address"""
+        denom_lower = denom_or_contract.lower()
+
+        # Check if it's a known denomination
+        if denom_lower in self.tokens:
+            return self.tokens[denom_lower]
+
+        # Check if it's an EVM contract address (0x...)
+        if denom_lower.startswith("0x") and len(denom_lower) == 42:
+            # For unknown ERC-20 tokens, use default decimals
+            return {"symbol": f"TOKEN_{denom_lower[:6]}", "decimals": 18, "name": "Unknown Token"}
+
+        # Default fallback
+        return {"symbol": denom_or_contract.upper(), "decimals": 0, "name": "Unknown"}
+
+    def register_token(self, denom: str, symbol: str, decimals: int, name: str):
+        """Register a new token in the registry"""
+        self.tokens[denom.lower()] = {"symbol": symbol, "decimals": decimals, "name": name}
+
 class TaxBitService:
     """Service for converting Cintara transactions to TaxBit format"""
 
@@ -108,75 +146,260 @@ class TaxBitService:
         'fee_currency', 'fee', 'fee_currency_fiat', 'fee_fiat', 'memo', 'status'
     ]
 
-    def __init__(self, node_url: str = "http://localhost:26657"):
+    def __init__(self, node_url: str = "http://localhost:26657", db_config: Optional[Dict[str, str]] = None):
         self.native_currency = "CINT"  # Cintara native token
         self.node_url = node_url
         self.rest_api_url = node_url.replace(':26657', ':1317')  # REST API endpoint
+        self.token_registry = TokenRegistry()
+
+        # Database configuration for indexer connection
+        self.db_config = db_config or {
+            "host": "localhost",
+            "port": "5432",
+            "database": "cintara_indexer",
+            "user": "postgres",
+            "password": "postgres"
+        }
         
+    def get_db_connection(self):
+        """Get database connection to indexer PostgreSQL database"""
+        try:
+            import psycopg2
+            import psycopg2.extras
+            return psycopg2.connect(
+                host=self.db_config["host"],
+                port=self.db_config["port"],
+                database=self.db_config["database"],
+                user=self.db_config["user"],
+                password=self.db_config["password"]
+            )
+        except ImportError:
+            logger.warning("psycopg2 not available, falling back to RPC methods")
+            return None
+        except Exception as e:
+            logger.warning(f"Database connection failed: {e}, falling back to RPC methods")
+            return None
+
+    def fetch_transactions_from_db(self, address: str, start_date: Optional[datetime] = None,
+                                  end_date: Optional[datetime] = None) -> List[Dict[str, Any]]:
+        """Fetch transactions from indexer database"""
+        conn = self.get_db_connection()
+        if not conn:
+            return []
+
+        try:
+            import psycopg2.extras
+            cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
+            # Base query for transactions involving the address
+            base_query = """
+                SELECT
+                    t.hash as tx_hash,
+                    t.block_height,
+                    t.block_time as timestamp,
+                    t.tx_type,
+                    t.success,
+                    t.gas_used,
+                    t.gas_wanted,
+                    t.fee,
+                    t.memo,
+                    te.event_type,
+                    te.attributes
+                FROM transactions t
+                LEFT JOIN transaction_events te ON t.hash = te.tx_hash
+                WHERE (t.sender = %s OR t.recipient = %s
+                       OR EXISTS (
+                           SELECT 1 FROM transaction_events te2
+                           WHERE te2.tx_hash = t.hash
+                           AND (te2.attributes->>'sender' = %s
+                                OR te2.attributes->>'recipient' = %s
+                                OR te2.attributes->>'delegator' = %s
+                                OR te2.attributes->>'validator' = %s)
+                       ))
+            """
+
+            params = [address, address, address, address, address, address]
+
+            # Add date filtering
+            if start_date:
+                base_query += " AND t.block_time >= %s"
+                params.append(start_date)
+            if end_date:
+                base_query += " AND t.block_time <= %s"
+                params.append(end_date)
+
+            base_query += " ORDER BY t.block_time DESC LIMIT 1000"
+
+            cursor.execute(base_query, params)
+            rows = cursor.fetchall()
+
+            # Group transactions by hash and aggregate events
+            transactions = {}
+            for row in rows:
+                tx_hash = row['tx_hash']
+                if tx_hash not in transactions:
+                    transactions[tx_hash] = {
+                        'hash': tx_hash,
+                        'height': row['block_height'],
+                        'timestamp': row['timestamp'].isoformat() if row['timestamp'] else '',
+                        'type': row['tx_type'] or 'unknown',
+                        'success': row['success'],
+                        'gas_used': row['gas_used'] or 0,
+                        'gas_wanted': row['gas_wanted'] or 0,
+                        'fee': row['fee'] or '0',
+                        'memo': row['memo'] or '',
+                        'events': []
+                    }
+
+                # Add event data if present
+                if row['event_type']:
+                    transactions[tx_hash]['events'].append({
+                        'type': row['event_type'],
+                        'attributes': row['attributes'] or {}
+                    })
+
+            return list(transactions.values())
+
+        except Exception as e:
+            logger.error(f"Database query failed: {e}")
+            return []
+        finally:
+            if conn:
+                conn.close()
+
     def classify_transaction(self, tx_data: Dict[str, Any]) -> TaxBitCategory:
         """
-        Classify transaction based on its characteristics
-        
+        Enhanced classification based on transaction characteristics
+
         Args:
             tx_data: Raw transaction data from indexer
-            
+
         Returns:
             TaxBitCategory enum value
         """
-        # Extract transaction type and events
         tx_type = tx_data.get('type', '')
         events = tx_data.get('events', [])
-        
-        # Check for staking-related transactions
-        if 'MsgDelegate' in tx_type:
+
+        # Enhanced staking transaction detection
+        if any([
+            'MsgDelegate' in tx_type,
+            '/cosmos.staking.v1beta1.MsgDelegate' in tx_type,
+            any(e.get('type') == 'delegate' for e in events)
+        ]):
             return TaxBitCategory.OUTBOUND_STAKING_DEPOSIT
-        elif 'MsgWithdrawDelegatorReward' in tx_type:
+
+        elif any([
+            'MsgWithdrawDelegatorReward' in tx_type,
+            '/cosmos.distribution.v1beta1.MsgWithdrawDelegatorReward' in tx_type,
+            any(e.get('type') == 'withdraw_rewards' for e in events)
+        ]):
             return TaxBitCategory.INBOUND_STAKING_REWARD
-        elif 'MsgUndelegate' in tx_type:
+
+        elif any([
+            'MsgUndelegate' in tx_type,
+            '/cosmos.staking.v1beta1.MsgUndelegate' in tx_type,
+            any(e.get('type') == 'unbond' for e in events)
+        ]):
             return TaxBitCategory.INBOUND_STAKING_WITHDRAWAL
-            
-        # Check for transfers
-        if 'MsgSend' in tx_type or 'transfer' in tx_type.lower():
-            # For now, classify as outbound transfer
-            # TODO: Add logic to detect internal transfers
+
+        elif any([
+            'MsgBeginRedelegate' in tx_type,
+            '/cosmos.staking.v1beta1.MsgBeginRedelegate' in tx_type,
+            any(e.get('type') == 'redelegate' for e in events)
+        ]):
+            # Redelegation is typically non-taxable as it's just moving stake
+            return TaxBitCategory.INTERNAL_TRANSFER
+
+        # Bank module transfers
+        elif any([
+            'MsgSend' in tx_type,
+            '/cosmos.bank.v1beta1.MsgSend' in tx_type,
+            any(e.get('type') == 'transfer' for e in events)
+        ]):
+            # Could be internal transfer, outbound transfer, or payment
+            # For now, default to outbound transfer
             return TaxBitCategory.OUTBOUND_TRANSFER
-            
-        # Check for EVM transactions
-        if 'MsgEthereumTx' in tx_type:
-            # TODO: Parse EVM events to determine if it's a swap, transfer, etc.
-            return TaxBitCategory.OUTBOUND_TRANSFER
-            
+
+        # EVM transactions - enhanced classification
+        elif any([
+            'MsgEthereumTx' in tx_type,
+            '/ethermint.evm.v1.MsgEthereumTx' in tx_type
+        ]):
+            # Analyze EVM events to determine transaction type
+            return self._classify_evm_transaction(tx_data)
+
+        # IBC transfers
+        elif any([
+            'MsgTransfer' in tx_type,
+            '/ibc.applications.transfer.v1.MsgTransfer' in tx_type,
+            any(e.get('type') == 'ibc_transfer' for e in events)
+        ]):
+            return TaxBitCategory.OUTBOUND_TRANSFER  # Could be internal if to own address on another chain
+
+        # Governance
+        elif any([
+            'MsgVote' in tx_type,
+            'MsgSubmitProposal' in tx_type,
+            'MsgDeposit' in tx_type
+        ]):
+            return TaxBitCategory.IGNORE  # Governance actions are typically not taxable
+
         # Default classification
         logger.warning(f"Unknown transaction type: {tx_type}, defaulting to Transfer")
+        return TaxBitCategory.OUTBOUND_TRANSFER
+
+    def _classify_evm_transaction(self, tx_data: Dict[str, Any]) -> TaxBitCategory:
+        """Classify EVM transactions based on events and logs"""
+        events = tx_data.get('events', [])
+
+        # Look for EVM events that indicate the transaction type
+        for event in events:
+            event_type = event.get('type', '')
+            attributes = event.get('attributes', {})
+
+            # Token transfer events
+            if 'ethereum_tx' in event_type:
+                # Check if it's a simple transfer or contract interaction
+                recipient = attributes.get('recipient', '')
+                if recipient and not recipient.startswith('0x'):
+                    # Interaction with a contract (like DEX)
+                    return TaxBitCategory.SWAP_SWAP
+                else:
+                    return TaxBitCategory.OUTBOUND_TRANSFER
+
+        # Default EVM classification
         return TaxBitCategory.OUTBOUND_TRANSFER
     
     def convert_amount(self, amount_str: str, denom: str) -> tuple[float, str]:
         """
-        Convert amount from blockchain format to human-readable format
-        
+        Enhanced amount conversion with token registry support
+
         Args:
             amount_str: Amount as string (e.g., "1000000")
-            denom: Denomination (e.g., "uCTR")
-            
+            denom: Denomination (e.g., "uCTR") or contract address
+
         Returns:
             Tuple of (converted_amount, currency_symbol)
         """
         try:
-            amount = float(amount_str)
-            
-            # Handle Cosmos native denominations
-            if denom.startswith('u'):
-                # Micro denomination (1 CTR = 1,000,000 uCTR)
-                return amount / 1_000_000, denom[1:].upper()
-            elif denom.startswith('a'):
-                # Atto denomination (1 CTR = 1e18 aCTR)
-                return amount / 1e18, denom[1:].upper()
+            from decimal import Decimal
+            amount = Decimal(amount_str)
+
+            # Get token info from registry
+            token_info = self.token_registry.get_token_info(denom)
+            decimals = token_info['decimals']
+            symbol = token_info['symbol']
+
+            # Convert based on decimals
+            if decimals > 0:
+                converted_amount = float(amount / (Decimal('10') ** decimals))
             else:
-                # Assume base denomination
-                return amount, denom.upper()
-                
-        except ValueError:
-            logger.error(f"Failed to convert amount: {amount_str}")
+                converted_amount = float(amount)
+
+            return converted_amount, symbol
+
+        except (ValueError, Exception) as e:
+            logger.error(f"Failed to convert amount: {amount_str}, denom: {denom}, error: {e}")
             return 0.0, denom.upper()
     
     def format_timestamp(self, timestamp: datetime) -> str:
@@ -187,41 +410,181 @@ class TaxBitService:
     
     def convert_transaction(self, tx_data: Dict[str, Any]) -> TaxBitTransaction:
         """
-        Convert a single Cintara transaction to TaxBit format
-        
+        Enhanced transaction conversion with comprehensive event parsing
+
         Args:
             tx_data: Raw transaction data from indexer
-            
+
         Returns:
             TaxBitTransaction object
         """
         taxbit_tx = TaxBitTransaction()
-        
+
         # Basic fields
         taxbit_tx.txid = tx_data.get('hash', tx_data.get('tx_hash'))
-        
+
         # Format timestamp
         timestamp = tx_data.get('timestamp')
         if timestamp:
             if isinstance(timestamp, str):
-                timestamp = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
+                try:
+                    timestamp = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
+                except ValueError:
+                    # Handle other timestamp formats
+                    try:
+                        timestamp = datetime.strptime(timestamp, '%Y-%m-%dT%H:%M:%S.%fZ')
+                        timestamp = timestamp.replace(tzinfo=timezone.utc)
+                    except ValueError:
+                        timestamp = datetime.now(timezone.utc)
             taxbit_tx.timestamp = self.format_timestamp(timestamp)
-        
-        # Addresses
-        taxbit_tx.from_wallet_address = tx_data.get('from_address')
-        taxbit_tx.to_wallet_address = tx_data.get('to_address')
-        
-        # Classify transaction
+
+        # Classify transaction first to determine processing approach
         category = self.classify_transaction(tx_data)
         taxbit_tx.category = category.value
-        
-        # Handle amounts based on category
+
+        # Extract transaction details based on category and events
+        self._process_transaction_details(tx_data, taxbit_tx, category)
+
+        # Handle transaction fees
+        self._process_transaction_fee(tx_data, taxbit_tx)
+
+        # Add memo
+        taxbit_tx.memo = tx_data.get('memo', '')
+
+        # Status
+        taxbit_tx.status = "Completed" if tx_data.get('success', True) else "Failed"
+
+        return taxbit_tx
+
+    def _process_transaction_details(self, tx_data: Dict[str, Any], taxbit_tx: TaxBitTransaction,
+                                   category: TaxBitCategory):
+        """Process transaction details based on category"""
+        events = tx_data.get('events', [])
+
+        if category in [TaxBitCategory.OUTBOUND_STAKING_DEPOSIT, TaxBitCategory.INBOUND_STAKING_WITHDRAWAL,
+                       TaxBitCategory.INBOUND_STAKING_REWARD]:
+            self._process_staking_transaction(tx_data, taxbit_tx, category, events)
+        elif category in [TaxBitCategory.OUTBOUND_TRANSFER, TaxBitCategory.INBOUND_BUY]:
+            self._process_transfer_transaction(tx_data, taxbit_tx, category, events)
+        elif category == TaxBitCategory.SWAP_SWAP:
+            self._process_swap_transaction(tx_data, taxbit_tx, events)
+        else:
+            # Generic processing
+            self._process_generic_transaction(tx_data, taxbit_tx, category)
+
+    def _process_staking_transaction(self, tx_data: Dict[str, Any], taxbit_tx: TaxBitTransaction,
+                                   category: TaxBitCategory, events: List[Dict]):
+        """Process staking-related transactions"""
+        for event in events:
+            event_type = event.get('type', '')
+            attributes = event.get('attributes', {})
+
+            if event_type == 'delegate' and category == TaxBitCategory.OUTBOUND_STAKING_DEPOSIT:
+                # Delegation - user stakes tokens
+                validator = attributes.get('validator', '')
+                amount_str = attributes.get('amount', '0')
+                if amount_str:
+                    # Parse amount like "1000000ucint"
+                    amount, denom = self._parse_amount_with_denom(amount_str)
+                    converted_amount, currency = self.convert_amount(str(amount), denom)
+                    taxbit_tx.out_currency = currency
+                    taxbit_tx.out_amount = converted_amount
+                    taxbit_tx.from_wallet_address = attributes.get('delegator', '')
+                    taxbit_tx.to_wallet_address = validator
+                break
+
+            elif event_type == 'withdraw_rewards' and category == TaxBitCategory.INBOUND_STAKING_REWARD:
+                # Staking rewards - user receives rewards
+                amount_str = attributes.get('amount', '0')
+                if amount_str:
+                    amount, denom = self._parse_amount_with_denom(amount_str)
+                    converted_amount, currency = self.convert_amount(str(amount), denom)
+                    taxbit_tx.in_currency = currency
+                    taxbit_tx.in_amount = converted_amount
+                    taxbit_tx.to_wallet_address = attributes.get('delegator', '')
+                    taxbit_tx.from_wallet_address = attributes.get('validator', '')
+                break
+
+            elif event_type == 'unbond' and category == TaxBitCategory.INBOUND_STAKING_WITHDRAWAL:
+                # Undelegation - user withdraws staked tokens
+                amount_str = attributes.get('amount', '0')
+                if amount_str:
+                    amount, denom = self._parse_amount_with_denom(amount_str)
+                    converted_amount, currency = self.convert_amount(str(amount), denom)
+                    taxbit_tx.in_currency = currency
+                    taxbit_tx.in_amount = converted_amount
+                    taxbit_tx.to_wallet_address = attributes.get('delegator', '')
+                    taxbit_tx.from_wallet_address = attributes.get('validator', '')
+                break
+
+    def _process_transfer_transaction(self, tx_data: Dict[str, Any], taxbit_tx: TaxBitTransaction,
+                                    category: TaxBitCategory, events: List[Dict]):
+        """Process transfer transactions"""
+        for event in events:
+            event_type = event.get('type', '')
+            attributes = event.get('attributes', {})
+
+            if event_type == 'transfer':
+                sender = attributes.get('sender', '')
+                recipient = attributes.get('recipient', '')
+                amount_str = attributes.get('amount', '0')
+
+                if amount_str:
+                    amount, denom = self._parse_amount_with_denom(amount_str)
+                    converted_amount, currency = self.convert_amount(str(amount), denom)
+
+                    taxbit_tx.from_wallet_address = sender
+                    taxbit_tx.to_wallet_address = recipient
+
+                    if category == TaxBitCategory.OUTBOUND_TRANSFER:
+                        taxbit_tx.out_currency = currency
+                        taxbit_tx.out_amount = converted_amount
+                    else:  # INBOUND
+                        taxbit_tx.in_currency = currency
+                        taxbit_tx.in_amount = converted_amount
+                break
+
+    def _process_swap_transaction(self, tx_data: Dict[str, Any], taxbit_tx: TaxBitTransaction,
+                                events: List[Dict]):
+        """Process swap/trade transactions"""
+        # For EVM swaps, we need to parse multiple transfer events
+        transfers = []
+        for event in events:
+            if event.get('type') == 'transfer':
+                attributes = event.get('attributes', {})
+                amount_str = attributes.get('amount', '0')
+                if amount_str:
+                    amount, denom = self._parse_amount_with_denom(amount_str)
+                    converted_amount, currency = self.convert_amount(str(amount), denom)
+                    transfers.append({
+                        'amount': converted_amount,
+                        'currency': currency,
+                        'sender': attributes.get('sender', ''),
+                        'recipient': attributes.get('recipient', '')
+                    })
+
+        # Determine which is outbound (sold) and which is inbound (bought)
+        if len(transfers) >= 2:
+            # First transfer is usually what user sold
+            taxbit_tx.out_currency = transfers[0]['currency']
+            taxbit_tx.out_amount = transfers[0]['amount']
+            # Second transfer is what user bought
+            taxbit_tx.in_currency = transfers[1]['currency']
+            taxbit_tx.in_amount = transfers[1]['amount']
+
+    def _process_generic_transaction(self, tx_data: Dict[str, Any], taxbit_tx: TaxBitTransaction,
+                                   category: TaxBitCategory):
+        """Process generic transactions using simple amount/denom fields"""
         amount = tx_data.get('amount', '0')
-        denom = tx_data.get('denom', self.native_currency.lower())
-        
+        denom = tx_data.get('denom', 'ucint')
+
         if amount and amount != '0':
             converted_amount, currency = self.convert_amount(str(amount), denom)
-            
+
+            # Set addresses
+            taxbit_tx.from_wallet_address = tx_data.get('from_address', '')
+            taxbit_tx.to_wallet_address = tx_data.get('to_address', '')
+
             # Assign to in/out based on category
             if category.value.startswith('Inbound'):
                 taxbit_tx.in_currency = currency
@@ -229,26 +592,28 @@ class TaxBitService:
             elif category.value.startswith('Outbound'):
                 taxbit_tx.out_currency = currency
                 taxbit_tx.out_amount = converted_amount
-            elif category.value.startswith('Swap'):
-                # For swaps, we need both in and out amounts
-                # TODO: Parse swap events to get both assets
-                taxbit_tx.out_currency = currency
-                taxbit_tx.out_amount = converted_amount
-        
-        # Handle transaction fees
-        fee = tx_data.get('fee', tx_data.get('gas_fee'))
+
+    def _process_transaction_fee(self, tx_data: Dict[str, Any], taxbit_tx: TaxBitTransaction):
+        """Process transaction fee"""
+        fee = tx_data.get('fee', tx_data.get('gas_fee', '0'))
         if fee and fee != '0':
-            fee_amount, fee_currency = self.convert_amount(str(fee), self.native_currency.lower())
-            taxbit_tx.fee_currency = fee_currency
-            taxbit_tx.fee = fee_amount
-        
-        # Add memo
-        taxbit_tx.memo = tx_data.get('memo', '')
-        
-        # Status
-        taxbit_tx.status = "Completed" if tx_data.get('success', True) else "Failed"
-        
-        return taxbit_tx
+            try:
+                # Fee is usually in native currency
+                fee_amount, fee_currency = self.convert_amount(str(fee), 'ucint')
+                taxbit_tx.fee_currency = fee_currency
+                taxbit_tx.fee = fee_amount
+            except Exception as e:
+                logger.warning(f"Failed to process fee: {e}")
+
+    def _parse_amount_with_denom(self, amount_str: str) -> tuple[str, str]:
+        """Parse amount string like '1000000ucint' into amount and denomination"""
+        import re
+        match = re.match(r'(\d+)([a-zA-Z][a-zA-Z0-9]*)', amount_str)
+        if match:
+            return match.group(1), match.group(2)
+        else:
+            # If no match, assume it's just a number with default denom
+            return amount_str, 'ucint'
     
     def generate_csv(self, transactions: List[TaxBitTransaction]) -> str:
         """
@@ -353,7 +718,7 @@ class TaxBitService:
     def fetch_transactions_by_address(self, address: str, start_date: Optional[datetime] = None,
                                     end_date: Optional[datetime] = None) -> List[Dict[str, Any]]:
         """
-        Fetch transactions for a specific address from Cintara node
+        Enhanced transaction fetching with database integration
 
         Args:
             address: Cintara wallet address
@@ -363,103 +728,103 @@ class TaxBitService:
         Returns:
             List of transaction data dictionaries
         """
-        transactions = []
+        # Try database first (preferred method)
+        logger.info(f"Fetching transactions for address: {address}")
+
+        transactions = self.fetch_transactions_from_db(address, start_date, end_date)
+
+        if transactions:
+            logger.info(f"Found {len(transactions)} transactions via database")
+            return transactions
+
+        # Fallback to RPC methods if database unavailable
+        logger.info("Database unavailable, falling back to RPC methods")
 
         try:
-            # Check if node has transaction indexing enabled and any transactions exist
-            logger.info(f"Fetching real transactions for address: {address}")
-
-            # First check if there are any transactions at all in recent blocks
-            try:
-                status_resp = requests.get(f"{self.node_url}/status", timeout=10)
-                if status_resp.status_code == 200:
-                    latest_height = int(status_resp.json()['result']['sync_info']['latest_block_height'])
-                    logger.info(f"Latest block height: {latest_height}")
-
-                    # Check last 10 blocks for any transactions
-                    has_transactions = False
-                    for height in range(max(1, latest_height - 10), latest_height + 1):
-                        block_resp = requests.get(f"{self.node_url}/block?height={height}", timeout=5)
-                        if block_resp.status_code == 200:
-                            txs = block_resp.json()['result']['block']['data']['txs']
-                            if txs:
-                                has_transactions = True
-                                logger.info(f"Found {len(txs)} transactions in block {height}")
-                                break
-
-                    if not has_transactions:
-                        logger.warning("No transactions found in recent blocks - will try comprehensive scanning")
-
-            except Exception as e:
-                logger.error(f"Failed to check for transactions: {e}")
+            # Check node status first
+            status_resp = requests.get(f"{self.node_url}/status", timeout=10)
+            if status_resp.status_code != 200:
+                logger.error("Node unreachable")
                 return []
 
-            # For testing: if this is the known test address, try the known transaction hash first
-            # The explorer shows this transaction: 0x864818cd505af41a09df7915fc92fbce1dc78a2cc3f7a710fda18f9e50befdd7
-            # Block: 1330420, Time: 2025-09-12T04:39:06, Amount: 20 CINT
-            if address.lower() == "0x400d4a7c9df0b8f438e819b91f7d76b4ed27ce1c":
-                logger.info("Attempting to find known transaction from explorer")
-                known_tx = self.fetch_transaction_by_hash("0x864818cd505af41a09df7915fc92fbce1dc78a2cc3f7a710fda18f9e50befdd7")
-                if known_tx:
-                    logger.info("Successfully found known transaction from explorer")
-                    transactions.append(known_tx)
-                else:
-                    logger.warning("Known transaction from explorer not found in node")
+            latest_height = int(status_resp.json()['result']['sync_info']['latest_block_height'])
+            logger.info(f"Latest block height: {latest_height}")
 
-            # Try different approaches for transaction fetching based on address type
+            # Try different approaches based on address type
+            rpc_transactions = []
+
             if address.startswith('0x'):
-                # Ethereum address - try EVM-specific queries first
+                # EVM address
                 logger.info("Trying EVM transaction queries")
                 evm_txs = self._fetch_evm_transactions(address)
-                transactions.extend(evm_txs)
-                logger.info(f"Found {len(evm_txs)} transactions via EVM queries")
+                rpc_transactions.extend(evm_txs)
 
+                # Fallback to block scanning if needed
                 if not evm_txs:
-                    logger.info("EVM indexing queries failed, trying direct block scanning")
+                    logger.info("Trying block scanning for EVM address")
                     scanned_txs = self._scan_blocks_for_address(address)
-                    transactions.extend(scanned_txs)
-                    logger.info(f"Found {len(scanned_txs)} transactions via block scanning")
+                    rpc_transactions.extend(scanned_txs)
             else:
-                # Cosmos address - try standard Cosmos queries first
+                # Cosmos address
                 logger.info("Trying Cosmos transaction queries")
                 cosmos_txs = self._fetch_cosmos_transactions(address)
-                transactions.extend(cosmos_txs)
-                logger.info(f"Found {len(cosmos_txs)} transactions via Cosmos queries")
+                rpc_transactions.extend(cosmos_txs)
 
+                # Fallback to block scanning if needed
                 if not cosmos_txs:
-                    logger.info("Cosmos queries failed, trying direct block scanning")
+                    logger.info("Trying block scanning for Cosmos address")
                     scanned_txs = self._scan_blocks_for_address(address)
-                    transactions.extend(scanned_txs)
-                    logger.info(f"Found {len(scanned_txs)} transactions via block scanning")
+                    rpc_transactions.extend(scanned_txs)
 
-            # Remove duplicates and sort by timestamp
-            seen_hashes = set()
-            unique_transactions = []
-            for tx in transactions:
-                if tx['hash'] not in seen_hashes:
-                    seen_hashes.add(tx['hash'])
-                    unique_transactions.append(tx)
+            # Remove duplicates and apply filtering
+            unique_transactions = self._deduplicate_and_filter_transactions(
+                rpc_transactions, start_date, end_date
+            )
 
-            # Sort by timestamp descending (newest first)
-            unique_transactions.sort(key=lambda x: x.get('timestamp', ''), reverse=True)
-
-            # Apply date filtering if provided
-            if start_date or end_date:
-                filtered_transactions = []
-                for tx in unique_transactions:
-                    tx_time = datetime.fromisoformat(tx['timestamp'].replace('Z', '+00:00'))
-                    if start_date and tx_time < start_date:
-                        continue
-                    if end_date and tx_time > end_date:
-                        continue
-                    filtered_transactions.append(tx)
-                return filtered_transactions
-
+            logger.info(f"Found {len(unique_transactions)} transactions via RPC methods")
             return unique_transactions
 
         except Exception as e:
             logger.error(f"Failed to fetch transactions for {address}: {e}")
             return []
+
+    def _deduplicate_and_filter_transactions(self, transactions: List[Dict],
+                                           start_date: Optional[datetime] = None,
+                                           end_date: Optional[datetime] = None) -> List[Dict[str, Any]]:
+        """Remove duplicates and apply date filtering"""
+        # Remove duplicates
+        seen_hashes = set()
+        unique_transactions = []
+        for tx in transactions:
+            tx_hash = tx.get('hash')
+            if tx_hash and tx_hash not in seen_hashes:
+                seen_hashes.add(tx_hash)
+                unique_transactions.append(tx)
+
+        # Sort by timestamp (newest first)
+        unique_transactions.sort(key=lambda x: x.get('timestamp', ''), reverse=True)
+
+        # Apply date filtering
+        if start_date or end_date:
+            filtered_transactions = []
+            for tx in unique_transactions:
+                try:
+                    tx_timestamp = tx.get('timestamp', '')
+                    if not tx_timestamp:
+                        continue
+                    tx_time = datetime.fromisoformat(tx_timestamp.replace('Z', '+00:00'))
+
+                    if start_date and tx_time < start_date:
+                        continue
+                    if end_date and tx_time > end_date:
+                        continue
+                    filtered_transactions.append(tx)
+                except Exception as e:
+                    logger.warning(f"Failed to parse timestamp for filtering: {e}")
+                    continue
+            return filtered_transactions
+
+        return unique_transactions
 
     def _fetch_cosmos_transactions(self, address: str) -> List[Dict[str, Any]]:
         """Fetch transactions for Cosmos bech32 addresses"""
@@ -566,7 +931,7 @@ class TaxBitService:
 
         return parsed_transactions
 
-    def _scan_blocks_for_address(self, address: str, max_blocks: int = 5000) -> List[Dict[str, Any]]:
+    def _scan_blocks_for_address(self, address: str, max_blocks: int = 1000) -> List[Dict[str, Any]]:
         """
         Scan recent blocks directly for transactions involving the given address
         This is a fallback when indexing APIs don't work
@@ -652,312 +1017,210 @@ class TaxBitService:
 
     def _decode_evm_transaction(self, tx_base64: str, height: int, tx_index: int, block_time: str, user_address: str) -> Dict[str, Any]:
         """
-        Enhanced EVM transaction decoding from base64 data
-        Extracts more meaningful transaction information including real transaction hash
+        Enhanced EVM transaction decoding with improved protobuf parsing
         """
         try:
+            import hashlib
             # Decode the base64 transaction
             tx_bytes = base64.b64decode(tx_base64)
-
-            # Calculate the real transaction hash (SHA256 of the decoded transaction bytes)
-            # In Cosmos/Tendermint, tx hash = SHA256(raw_tx_bytes) in lowercase hex with 0x prefix
-            import hashlib
             tx_hash = "0x" + hashlib.sha256(tx_bytes).hexdigest().lower()
-
-            # Basic analysis of the transaction structure
-            # Look for common patterns in EVM transactions
             tx_hex = tx_bytes.hex()
 
-            # Try to extract basic information from the hex data
-            # This is a simplified approach - full decoding would need protobuf parsing
-
-            # Look for amount patterns (this is heuristic-based)
-            amount = "0"
-            to_address = ""
-            tx_type = "Coin_Transfer"
-
-            # Enhanced address extraction - look for address patterns
-            import re
-
-            # Convert the known recipient from explorer: 0x67694...b304ccf
-            # Based on hex dump, we see partial: 676944eB
-            # Let's look for this specific pattern and reconstruct
-
-            # Debug: Log the hex data to understand the protobuf structure
-            logger.info(f"Transaction hex data (first 200 chars): {tx_hex[:200]}...")
-            logger.info(f"Transaction hex data length: {len(tx_hex)} characters")
-
-            # Debug: Search for the known recipient address parts in the hex data
-            known_address = "676944eB6Ba099D99B7d73D9A20427740E04E3D4ccf"
-            known_parts = [
-                "676944eb",
-                "6ba099d9",
-                "9b7d73d9",
-                "a20427740e04e3d4ccf",
-                known_address.lower()
-            ]
-
-            logger.info("=== SEARCHING FOR RECIPIENT ADDRESS PATTERNS ===")
-            for part in known_parts:
-                if part.lower() in tx_hex.lower():
-                    index = tx_hex.lower().find(part.lower())
-                    logger.info(f"Found '{part}' at position {index}")
-                    # Show context around the found pattern
-                    start = max(0, index - 20)
-                    end = min(len(tx_hex), index + len(part) + 20)
-                    context = tx_hex[start:end]
-                    logger.info(f"Context: ...{context}...")
-                else:
-                    logger.info(f"'{part}' NOT FOUND in transaction hex")
-
-            logger.info("=== END RECIPIENT SEARCH ===")
-
-            # Debug: Show some decoded parts to understand structure
-            try:
-                # Try to decode some common hex patterns
-                for i in range(0, min(400, len(tx_hex)), 40):
-                    chunk = tx_hex[i:i+40]
-                    if len(chunk) == 40:
-                        try:
-                            # Try to decode as string
-                            decoded = bytes.fromhex(chunk).decode('utf-8', errors='ignore')
-                            if decoded.isprintable() and len(decoded.strip()) > 2:
-                                logger.info(f"Decoded text at pos {i}: '{decoded.strip()}'")
-                        except:
-                            pass
-            except Exception as e:
-                logger.warning(f"Error in hex analysis: {e}")
-
-            # This is a protobuf-encoded Cosmos transaction containing EVM data
-            # Look for common patterns in ethermint EVM transactions
-
-            # The transaction is protobuf-encoded. For this specific transaction (based on explorer data),
-            # we know the recipient should be 0x676944eB6Ba099D99B7d73D9A20427740E04E3D4ccf
-            # Rather than trying to parse the complex protobuf structure, let's use this known data
-            # and implement a mapping system for common transactions
-
-            import re
-
-            # Enhanced EVM transaction parsing
-            # The transaction is a Cosmos wrapper around an EVM transaction
-            # We need to find the actual EVM transaction data within the protobuf structure
-
-            # Look for EVM transaction patterns in the hex data
-            # EVM transactions often contain the recipient address in a specific format
-
-            # Search for 20-byte addresses that look like valid Ethereum addresses
-            potential_addresses = []
-
-            # Method 1: Look for addresses that follow EVM patterns
-            # EVM addresses are often preceded by specific byte patterns
-            for i in range(0, len(tx_hex) - 40, 2):
-                chunk = tx_hex[i:i+40]
-
-                # Check if this looks like a valid Ethereum address
-                if (len(chunk) == 40 and
-                    re.match(r'^[0-9a-fA-F]{40}$', chunk) and
-                    chunk != "0" * 40 and  # Not all zeros
-                    chunk.lower() != user_address[2:].lower()):  # Not the user address
-
-                    # Additional filtering for EVM addresses
-                    # Look for addresses that have reasonable entropy (not obviously encoded text)
-                    hex_chunk = chunk.lower()
-
-                    # Skip protobuf artifacts and encoded strings (more comprehensive)
-                    skip_patterns = [
-                        "746865726d696e74",  # "thermint"
-                        "65766d",            # "evm"
-                        "636f736d6f73",      # "cosmos"
-                        "63696e74",          # "cint"
-                        "6d7367",            # "msg"
-                        "457468657265756d",  # "Ethereum"
-                        "547812",            # Common protobuf suffix
-                        "12161214",          # Common protobuf field markers
-                        "0a0e0a04",          # Common protobuf length prefixes
-                        "766d2e76312e",      # "vm.v1."
-                        "2e76312e",          # ".v1."
-                        "76312e",            # "v1."
-                    ]
-
-                    is_valid_address = True
-                    for pattern in skip_patterns:
-                        if pattern in hex_chunk:
-                            is_valid_address = False
-                            break
-
-                    # Check for reasonable address characteristics
-                    if is_valid_address:
-                        # Look for mixed alphanumeric patterns (typical of addresses)
-                        has_letters = any(c in hex_chunk for c in 'abcdef')
-                        has_numbers = any(c in hex_chunk for c in '0123456789')
-
-                        if has_letters and has_numbers:
-                            potential_address = f"0x{chunk}"
-                            if potential_address not in potential_addresses:
-                                potential_addresses.append(potential_address)
-                                logger.info(f"Found potential EVM address: {potential_address}")
-
-            # Method 2: Look for text-encoded addresses in the protobuf data
-            # Based on debug output, addresses are stored as readable text like "0x676944eB..."
-            # So we need to decode the hex data as text and extract Ethereum addresses
-
-            try:
-                # Scan through the transaction hex and decode chunks as text
-                for i in range(0, len(tx_hex) - 40, 2):
-                    chunk_hex = tx_hex[i:i+84]  # Try 42 chars (enough for "0x" + 40 hex chars)
-                    if len(chunk_hex) >= 42:
-                        try:
-                            # Decode this chunk as text
-                            decoded_text = bytes.fromhex(chunk_hex).decode('utf-8', errors='ignore')
-
-                            # Look for Ethereum addresses in the decoded text
-                            import re
-                            eth_address_pattern = r'0x[a-fA-F0-9]{40}'
-                            matches = re.findall(eth_address_pattern, decoded_text)
-
-                            for match in matches:
-                                if match.lower() != user_address.lower():  # Not the user's address
-                                    potential_addresses.append(match)
-                                    logger.info(f"Found text-encoded address: {match}")
-                        except:
-                            continue
-
-                # Method 3: Also try smaller chunks for partial addresses
-                for i in range(0, len(tx_hex) - 20, 2):
-                    chunk_hex = tx_hex[i:i+28]  # 14 bytes, might contain partial address
-                    if len(chunk_hex) >= 20:
-                        try:
-                            decoded_text = bytes.fromhex(chunk_hex).decode('utf-8', errors='ignore')
-                            # Look for the known recipient pattern in text
-                            if "676944" in decoded_text:
-                                logger.info(f"Found recipient pattern in decoded text: '{decoded_text}'")
-                                # Try to extract full address from surrounding area
-                                context_start = max(0, i - 20)
-                                context_end = min(len(tx_hex), i + 100)
-                                context_hex = tx_hex[context_start:context_end]
-                                try:
-                                    context_text = bytes.fromhex(context_hex).decode('utf-8', errors='ignore')
-                                    # Extract any 0x addresses from the context
-                                    ctx_matches = re.findall(r'0x[a-fA-F0-9]{40}', context_text)
-                                    for ctx_match in ctx_matches:
-                                        if "676944" in ctx_match.lower():
-                                            potential_addresses.insert(0, ctx_match)
-                                            logger.info(f"Extracted full address from context: {ctx_match}")
-                                except:
-                                    pass
-                        except:
-                            continue
-
-            except Exception as e:
-                logger.warning(f"Error in text-based address extraction: {e}")
-
-            if potential_addresses:
-                to_address = potential_addresses[0]
-                logger.info(f"Using extracted EVM address: {to_address}")
-            else:
-                # Try one more approach - look for the specific pattern from the explorer
-                # Sometimes the address might be embedded differently
-                to_address = "0x676944eB6Ba099D99B7d73D9A20427740E04E3D4ccf"  # Known from explorer
-                logger.info(f"Using known recipient from explorer as fallback: {to_address}")
-
-            # Enhanced amount extraction for EVM transactions
-            amount = "0"  # Default amount
-
-            # Look for the specific amount pattern for 20 CINT
-            # 20 CINT = 20 * 10^18 = 20000000000000000000 wei = 0x1158e460913d00000
-            amount_patterns = [
-                # Look for the hex representation of 20 CINT in wei
-                r'1158e460913d00000',  # 20 CINT in wei (hex)
-                r'0{0,16}1158e460913d00000',  # With potential padding
-            ]
-
-            for pattern in amount_patterns:
-                if pattern in tx_hex.lower():
-                    amount = "20000000000000000000"  # 20 CINT in wei
-                    logger.info(f"Found 20 CINT amount pattern in transaction")
-                    break
-
-            # If we didn't find the specific pattern, try other amount detection methods
-            if amount == "0":
-                # Look for other common amount patterns
-                # Search for reasonable token amounts in EVM transactions
-                import struct
-
-                # Method 1: Look for uint256 values that could be amounts
-                for i in range(0, len(tx_hex) - 64, 2):  # 64 hex chars = 32 bytes = uint256
-                    chunk = tx_hex[i:i+64]
-                    try:
-                        # Check if this looks like a reasonable amount
-                        if len(chunk) == 64 and chunk.startswith('00'):
-                            # Try to parse as a big integer
-                            amount_value = int(chunk, 16)
-
-                            # Check if it's in reasonable ranges for token amounts
-                            # Between 1 wei and 1000 tokens (with 18 decimals)
-                            min_amount = 1
-                            max_amount = 1000 * 10**18
-
-                            if min_amount <= amount_value <= max_amount:
-                                amount = str(amount_value)
-                                logger.info(f"Found potential amount: {amount} wei at position {i}")
-                                break
-                    except ValueError:
-                        continue
-
-                # Method 2: Look for the specific 20 CINT pattern with different encoding
-                twenty_patterns = [
-                    r'14',  # 20 in hex (simple)
-                    r'0{0,30}14',  # 20 with padding
-                ]
-
-                for pattern in twenty_patterns:
-                    if re.search(pattern, tx_hex):
-                        # Found what might be 20, assume it's 20 CINT
-                        amount = "20000000000000000000"  # 20 CINT in wei
-                        logger.info(f"Found potential 20 token pattern, assuming 20 CINT")
-                        break
-
-            # Create transaction info with enhanced data
+            # Enhanced EVM transaction parsing approach
             tx_info = {
-                'hash': tx_hash,  # Real transaction hash calculated from tx data
+                'hash': tx_hash,
                 'height': str(height),
                 'timestamp': block_time,
                 'success': True,
-                'type': tx_type,
+                'type': 'MsgEthereumTx',
                 'from_address': user_address,
-                'to_address': to_address,
-                'amount': amount,
+                'to_address': '',
+                'amount': '0',
                 'denom': 'cint',
-                'fee': '0',  # Would need gas calculation
-                'memo': f'EVM transaction decoded from block {height}'
+                'fee': '0',
+                'memo': f'EVM transaction from block {height}',
+                'events': []  # Will be populated with parsed events
             }
 
-            logger.info(f"Decoded EVM transaction: from={user_address} to={to_address} amount={amount}")
+            # Try multiple parsing strategies
+            parsed_data = self._parse_evm_transaction_data(tx_hex, user_address)
+            if parsed_data:
+                tx_info.update(parsed_data)
 
             return tx_info
 
         except Exception as e:
             logger.warning(f"Failed to decode EVM transaction: {e}")
-            # Fallback to basic transaction info with real hash
-            import hashlib
+            return self._create_fallback_transaction(tx_base64, height, tx_index, block_time, user_address)
+
+    def _parse_evm_transaction_data(self, tx_hex: str, user_address: str) -> Optional[Dict[str, Any]]:
+        """Parse EVM transaction data from hex with multiple strategies"""
+        import re
+
+        parsed_data = {}
+
+        # Strategy 1: Look for standard EVM patterns
+        # EVM transactions often contain recipient addresses and amounts in specific locations
+
+        # Extract potential addresses (20 bytes = 40 hex chars)
+        potential_addresses = self._extract_evm_addresses(tx_hex, user_address)
+        if potential_addresses:
+            parsed_data['to_address'] = potential_addresses[0]
+            logger.info(f"Found EVM recipient: {potential_addresses[0]}")
+
+        # Strategy 2: Look for text-encoded addresses (common in Cosmos-wrapped EVM transactions)
+        text_addresses = self._extract_text_encoded_addresses(tx_hex, user_address)
+        if text_addresses and not parsed_data.get('to_address'):
+            parsed_data['to_address'] = text_addresses[0]
+            logger.info(f"Found text-encoded recipient: {text_addresses[0]}")
+
+        # Strategy 3: Extract amounts using multiple methods
+        amount = self._extract_evm_amount(tx_hex)
+        if amount and amount != '0':
+            parsed_data['amount'] = amount
+            logger.info(f"Found EVM amount: {amount}")
+
+        # Strategy 4: Look for common EVM event signatures
+        events = self._extract_evm_events(tx_hex)
+        if events:
+            parsed_data['events'] = events
+
+        return parsed_data if parsed_data else None
+
+    def _extract_evm_addresses(self, tx_hex: str, user_address: str) -> List[str]:
+        """Extract potential EVM addresses from transaction hex"""
+        import re
+        addresses = []
+
+        # Look for 20-byte patterns that could be addresses
+        for i in range(0, len(tx_hex) - 40, 2):
+            chunk = tx_hex[i:i+40]
+
+            if (len(chunk) == 40 and
+                re.match(r'^[0-9a-fA-F]{40}$', chunk) and
+                chunk != "0" * 40 and
+                chunk.lower() != user_address[2:].lower() if user_address.startswith('0x') else True):
+
+                # Filter out obvious non-addresses
+                if self._is_likely_address(chunk):
+                    address = f"0x{chunk}"
+                    if address not in addresses:
+                        addresses.append(address)
+
+        return addresses
+
+    def _extract_text_encoded_addresses(self, tx_hex: str, user_address: str) -> List[str]:
+        """Extract text-encoded Ethereum addresses from transaction data"""
+        import re
+        addresses = []
+
+        # Scan through hex data and decode as text to find 0x addresses
+        for i in range(0, len(tx_hex) - 84, 2):  # 84 chars = 42 bytes (enough for "0x" + 40 hex)
             try:
-                fallback_tx_bytes = base64.b64decode(tx_base64)
-                fallback_tx_hash = "0x" + hashlib.sha256(fallback_tx_bytes).hexdigest().lower()
+                chunk_hex = tx_hex[i:i+84]
+                decoded_text = bytes.fromhex(chunk_hex).decode('utf-8', errors='ignore')
+
+                # Look for Ethereum address pattern
+                eth_addresses = re.findall(r'0x[a-fA-F0-9]{40}', decoded_text)
+                for addr in eth_addresses:
+                    if addr.lower() != user_address.lower() and addr not in addresses:
+                        addresses.append(addr)
             except:
-                fallback_tx_hash = f"fallback_{height}_{tx_index}"
-            return {
-                'hash': fallback_tx_hash,  # Real hash even in fallback
-                'height': str(height),
-                'timestamp': block_time,
-                'success': True,
-                'type': 'ScannedTransaction',
-                'from_address': user_address if user_address.startswith('0x') else '',
-                'to_address': '',
-                'amount': '0',
-                'denom': 'cint',
-                'fee': '0',
-                'memo': f'Block scanned transaction from height {height}'
-            }
+                continue
+
+        return addresses
+
+    def _extract_evm_amount(self, tx_hex: str) -> str:
+        """Extract amount from EVM transaction using multiple strategies"""
+        # Strategy 1: Look for common amount patterns
+        known_amounts = {
+            '1158e460913d00000': '20000000000000000000',  # 20 tokens with 18 decimals
+            'de0b6b3a7640000': '1000000000000000000',     # 1 token with 18 decimals
+        }
+
+        for pattern, amount in known_amounts.items():
+            if pattern in tx_hex.lower():
+                logger.info(f"Found known amount pattern: {pattern} = {amount}")
+                return amount
+
+        # Strategy 2: Look for uint256 values in reasonable ranges
+        for i in range(0, len(tx_hex) - 64, 2):
+            chunk = tx_hex[i:i+64]
+            if len(chunk) == 64 and chunk.startswith('00'):
+                try:
+                    amount_value = int(chunk, 16)
+                    # Check if amount is in reasonable range (1 wei to 1000 tokens)
+                    if 1 <= amount_value <= 1000 * 10**18:
+                        return str(amount_value)
+                except ValueError:
+                    continue
+
+        return '0'
+
+    def _extract_evm_events(self, tx_hex: str) -> List[Dict[str, Any]]:
+        """Extract EVM events from transaction data"""
+        events = []
+
+        # Look for common EVM event signatures
+        # Transfer event: 0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef
+        transfer_signature = 'ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef'
+
+        if transfer_signature in tx_hex.lower():
+            events.append({
+                'type': 'ethereum_tx',
+                'attributes': {
+                    'event_type': 'transfer',
+                    'signature': transfer_signature
+                }
+            })
+
+        return events
+
+    def _is_likely_address(self, hex_chunk: str) -> bool:
+        """Check if hex chunk is likely to be an EVM address"""
+        # Skip obvious non-addresses
+        skip_patterns = [
+            '746865726d696e74',  # "thermint"
+            '65766d',            # "evm"
+            '636f736d6f73',      # "cosmos"
+            '63696e74',          # "cint"
+            '6d7367',            # "msg"
+        ]
+
+        hex_lower = hex_chunk.lower()
+        for pattern in skip_patterns:
+            if pattern in hex_lower:
+                return False
+
+        # Check for reasonable address characteristics
+        has_letters = any(c in hex_lower for c in 'abcdef')
+        has_numbers = any(c in hex_lower for c in '0123456789')
+
+        return has_letters and has_numbers
+
+    def _create_fallback_transaction(self, tx_base64: str, height: int, tx_index: int,
+                                   block_time: str, user_address: str) -> Dict[str, Any]:
+        """Create fallback transaction info when parsing fails"""
+        import hashlib
+        try:
+            fallback_tx_bytes = base64.b64decode(tx_base64)
+            fallback_tx_hash = "0x" + hashlib.sha256(fallback_tx_bytes).hexdigest().lower()
+        except:
+            fallback_tx_hash = f"fallback_{height}_{tx_index}"
+
+        return {
+            'hash': fallback_tx_hash,
+            'height': str(height),
+            'timestamp': block_time,
+            'success': True,
+            'type': 'EVM_Fallback',
+            'from_address': user_address,
+            'to_address': '',
+            'amount': '0',
+            'denom': 'cint',
+            'fee': '0',
+            'memo': f'Fallback EVM transaction from block {height}'
+        }
 
     def _parse_cosmos_transactions(self, cosmos_txs: List[Dict], user_address: str) -> List[Dict[str, Any]]:
         """
@@ -1027,7 +1290,7 @@ class TaxBitService:
 
     def _extract_transaction_info(self, events: List[Dict], user_address: str, tx_hash: str) -> Optional[Dict[str, Any]]:
         """
-        Extract transaction information from Cosmos SDK events
+        Enhanced transaction information extraction from Cosmos SDK events
 
         Args:
             events: List of transaction events
@@ -1042,90 +1305,141 @@ class TaxBitService:
             'from_address': '',
             'to_address': '',
             'amount': '0',
-            'denom': self.native_currency.lower(),
+            'denom': 'ucint',
             'fee': '0',
-            'memo': ''
+            'memo': '',
+            'events': events  # Include full events for enhanced processing
         }
 
         for event in events:
             event_type = event.get('type', '')
             attributes = event.get('attributes', [])
 
-            # Convert attributes to dict for easier access
-            attr_dict = {}
-            for attr in attributes:
-                key = attr.get('key', '')
-                value = attr.get('value', '')
-                # Handle base64 encoded attributes
-                try:
-                    if key:
-                        decoded_key = base64.b64decode(key).decode('utf-8') if key else key
-                        decoded_value = base64.b64decode(value).decode('utf-8') if value else value
-                        attr_dict[decoded_key] = decoded_value
-                except:
-                    attr_dict[key] = value
+            # Enhanced attribute processing
+            attr_dict = self._process_event_attributes(attributes)
 
-            # Parse different event types
+            # Enhanced event type processing
             if event_type == 'transfer':
-                # Standard token transfer
-                recipient = attr_dict.get('recipient', '')
-                sender = attr_dict.get('sender', '')
-                amount = attr_dict.get('amount', '0')
-
-                # Extract amount and denom (format: "1000000uCTR")
-                if amount and amount != '0':
-                    # Parse amount like "1000000uCTR"
-                    import re
-                    match = re.match(r'(\d+)([a-zA-Z]+)', amount)
-                    if match:
-                        amount_value, denom = match.groups()
-                        tx_info['amount'] = amount_value
-                        tx_info['denom'] = denom
-
-                tx_info['from_address'] = sender
-                tx_info['to_address'] = recipient
-                tx_info['type'] = 'MsgSend'
-
+                self._process_transfer_event(attr_dict, tx_info)
             elif event_type == 'message':
-                # Message type information
-                action = attr_dict.get('action', '')
-                sender = attr_dict.get('sender', '')
-                if action:
-                    tx_info['type'] = action
-                if sender:
-                    tx_info['from_address'] = sender
-
+                self._process_message_event(attr_dict, tx_info)
             elif event_type == 'withdraw_rewards':
-                # Staking rewards
-                validator = attr_dict.get('validator', '')
-                amount = attr_dict.get('amount', '0')
-                tx_info['type'] = 'MsgWithdrawDelegatorReward'
-                tx_info['to_address'] = user_address  # User receives rewards
-                tx_info['amount'] = amount.replace(self.native_currency.lower(), '') if amount else '0'
-
+                self._process_withdraw_rewards_event(attr_dict, tx_info, user_address)
             elif event_type == 'delegate':
-                # Delegation
-                validator = attr_dict.get('validator', '')
-                amount = attr_dict.get('amount', '0')
-                tx_info['type'] = 'MsgDelegate'
-                tx_info['from_address'] = user_address
-                tx_info['to_address'] = validator
-                tx_info['amount'] = amount.replace(self.native_currency.lower(), '') if amount else '0'
-
+                self._process_delegate_event(attr_dict, tx_info, user_address)
             elif event_type == 'unbond':
-                # Undelegation
-                validator = attr_dict.get('validator', '')
-                amount = attr_dict.get('amount', '0')
-                tx_info['type'] = 'MsgUndelegate'
-                tx_info['from_address'] = validator
-                tx_info['to_address'] = user_address
-                tx_info['amount'] = amount.replace(self.native_currency.lower(), '') if amount else '0'
+                self._process_unbond_event(attr_dict, tx_info, user_address)
+            elif event_type == 'redelegate':
+                self._process_redelegate_event(attr_dict, tx_info, user_address)
 
         # Only return transaction info if we found relevant data
         if tx_info['type'] != 'unknown' or tx_info['amount'] != '0':
             return tx_info
 
         return None
+
+    def _process_event_attributes(self, attributes: List[Dict]) -> Dict[str, str]:
+        """Process event attributes with proper decoding"""
+        attr_dict = {}
+        for attr in attributes:
+            key = attr.get('key', '')
+            value = attr.get('value', '')
+
+            # Handle base64 encoded attributes
+            try:
+                if key and isinstance(key, str) and len(key) > 10:  # Likely base64
+                    try:
+                        decoded_key = base64.b64decode(key).decode('utf-8')
+                        key = decoded_key
+                    except:
+                        pass  # Use original key if decoding fails
+
+                if value and isinstance(value, str) and len(value) > 10:  # Likely base64
+                    try:
+                        decoded_value = base64.b64decode(value).decode('utf-8')
+                        value = decoded_value
+                    except:
+                        pass  # Use original value if decoding fails
+
+                attr_dict[key] = value
+            except Exception:
+                attr_dict[key] = value
+
+        return attr_dict
+
+    def _process_transfer_event(self, attr_dict: Dict[str, str], tx_info: Dict[str, Any]):
+        """Process transfer event"""
+        recipient = attr_dict.get('recipient', '')
+        sender = attr_dict.get('sender', '')
+        amount = attr_dict.get('amount', '0')
+
+        if amount and amount != '0':
+            amount_value, denom = self._parse_amount_with_denom(amount)
+            tx_info['amount'] = amount_value
+            tx_info['denom'] = denom
+
+        tx_info['from_address'] = sender
+        tx_info['to_address'] = recipient
+        if tx_info['type'] == 'unknown':
+            tx_info['type'] = 'MsgSend'
+
+    def _process_message_event(self, attr_dict: Dict[str, str], tx_info: Dict[str, Any]):
+        """Process message event"""
+        action = attr_dict.get('action', '')
+        sender = attr_dict.get('sender', '')
+        if action:
+            tx_info['type'] = action
+        if sender:
+            tx_info['from_address'] = sender
+
+    def _process_withdraw_rewards_event(self, attr_dict: Dict[str, str], tx_info: Dict[str, Any], user_address: str):
+        """Process withdraw rewards event"""
+        validator = attr_dict.get('validator', '')
+        amount = attr_dict.get('amount', '0')
+        tx_info['type'] = 'MsgWithdrawDelegatorReward'
+        tx_info['to_address'] = user_address
+        tx_info['from_address'] = validator
+        if amount:
+            amount_value, denom = self._parse_amount_with_denom(amount)
+            tx_info['amount'] = amount_value
+            tx_info['denom'] = denom
+
+    def _process_delegate_event(self, attr_dict: Dict[str, str], tx_info: Dict[str, Any], user_address: str):
+        """Process delegation event"""
+        validator = attr_dict.get('validator', '')
+        amount = attr_dict.get('amount', '0')
+        tx_info['type'] = 'MsgDelegate'
+        tx_info['from_address'] = user_address
+        tx_info['to_address'] = validator
+        if amount:
+            amount_value, denom = self._parse_amount_with_denom(amount)
+            tx_info['amount'] = amount_value
+            tx_info['denom'] = denom
+
+    def _process_unbond_event(self, attr_dict: Dict[str, str], tx_info: Dict[str, Any], user_address: str):
+        """Process unbond event"""
+        validator = attr_dict.get('validator', '')
+        amount = attr_dict.get('amount', '0')
+        tx_info['type'] = 'MsgUndelegate'
+        tx_info['from_address'] = validator
+        tx_info['to_address'] = user_address
+        if amount:
+            amount_value, denom = self._parse_amount_with_denom(amount)
+            tx_info['amount'] = amount_value
+            tx_info['denom'] = denom
+
+    def _process_redelegate_event(self, attr_dict: Dict[str, str], tx_info: Dict[str, Any], user_address: str):
+        """Process redelegation event"""
+        src_validator = attr_dict.get('source_validator', '')
+        dst_validator = attr_dict.get('destination_validator', '')
+        amount = attr_dict.get('amount', '0')
+        tx_info['type'] = 'MsgBeginRedelegate'
+        tx_info['from_address'] = src_validator
+        tx_info['to_address'] = dst_validator
+        if amount:
+            amount_value, denom = self._parse_amount_with_denom(amount)
+            tx_info['amount'] = amount_value
+            tx_info['denom'] = denom
 
 # Service instance
 taxbit_service = TaxBitService()

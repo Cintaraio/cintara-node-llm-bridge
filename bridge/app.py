@@ -14,12 +14,22 @@ logger = logging.getLogger(__name__)
 LLAMA_SERVER_URL = os.getenv("LLAMA_SERVER_URL", "http://localhost:8000")
 CINTARA_NODE_URL = os.getenv("CINTARA_NODE_URL", "http://localhost:26657")
 
+# Database configuration for indexer
+DB_CONFIG = {
+    "host": os.getenv("DB_HOST", "localhost"),
+    "port": os.getenv("DB_PORT", "5432"),
+    "database": os.getenv("DB_NAME", "cintara_indexer"),
+    "user": os.getenv("DB_USER", "postgres"),
+    "password": os.getenv("DB_PASSWORD", "postgres")
+}
+
 # Log the configuration
 logger.info(f"LLM Server URL: {LLAMA_SERVER_URL}")
 logger.info(f"Cintara Node URL: {CINTARA_NODE_URL}")
+logger.info(f"Database Host: {DB_CONFIG['host']}:{DB_CONFIG['port']}")
 
-# Initialize TaxBit service with node URL
-taxbit_service = TaxBitService(node_url=CINTARA_NODE_URL)
+# Initialize TaxBit service with node URL and database config
+taxbit_service = TaxBitService(node_url=CINTARA_NODE_URL, db_config=DB_CONFIG)
 
 app = FastAPI(
     title="Cintara LLM Bridge",
@@ -816,25 +826,45 @@ async def export_taxbit_csv(address: str, start_date: Optional[str] = None, end_
         raise HTTPException(status_code=500, detail=f"Export failed: {str(e)}")
 
 @app.get("/taxbit/preview/{address}")
-async def preview_taxbit_data(address: str, limit: int = 10):
+async def preview_taxbit_data(address: str, limit: int = 10, start_date: Optional[str] = None, end_date: Optional[str] = None):
     """
-    Preview TaxBit data for an address (first N transactions)
-    
+    Preview TaxBit data for an address with date filtering
+
     Args:
         address: Cintara wallet address
         limit: Number of transactions to preview (default 10)
-        
+        start_date: Optional start date (ISO format)
+        end_date: Optional end date (ISO format)
+
     Returns:
         JSON array of TaxBit formatted transactions
     """
     try:
         logger.info(f"Generating TaxBit preview for address: {address}")
 
-        # Fetch real transactions using TaxBit service
-        transactions = taxbit_service.fetch_transactions_by_address(address)
+        # Parse date filters if provided
+        parsed_start_date = None
+        parsed_end_date = None
+
+        if start_date:
+            try:
+                parsed_start_date = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
+            except ValueError:
+                raise HTTPException(status_code=400, detail="Invalid start_date format. Use ISO 8601.")
+
+        if end_date:
+            try:
+                parsed_end_date = datetime.fromisoformat(end_date.replace('Z', '+00:00'))
+            except ValueError:
+                raise HTTPException(status_code=400, detail="Invalid end_date format. Use ISO 8601.")
+
+        # Fetch real transactions using TaxBit service with date filtering
+        transactions = taxbit_service.fetch_transactions_by_address(address, parsed_start_date, parsed_end_date)
 
         # Convert to preview format (limit to first N transactions)
         preview_data = []
+        conversion_errors = []
+
         for tx in transactions[:limit]:
             try:
                 taxbit_tx = taxbit_service.convert_transaction(tx)
@@ -855,17 +885,27 @@ async def preview_taxbit_data(address: str, limit: int = 10):
                     "status": taxbit_tx.status
                 })
             except Exception as e:
-                logger.error(f"Failed to convert transaction for preview: {e}")
+                error_msg = f"Failed to convert transaction {tx.get('hash', 'unknown')}: {str(e)}"
+                logger.error(error_msg)
+                conversion_errors.append(error_msg)
                 continue
 
         return {
             "address": address,
+            "total_transactions": len(transactions),
             "preview_count": len(preview_data),
             "transactions": preview_data,
+            "conversion_errors": conversion_errors if conversion_errors else None,
+            "date_range": {
+                "start_date": start_date,
+                "end_date": end_date
+            },
             "note": "Preview of real transaction data. Use /taxbit/export/{address} for full CSV download.",
             "timestamp": datetime.utcnow().isoformat()
         }
-        
+
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"TaxBit preview failed for {address}: {e}")
         raise HTTPException(status_code=500, detail=f"Preview failed: {str(e)}")
@@ -893,6 +933,164 @@ async def get_taxbit_categories():
         "total_count": len(categories),
         "timestamp": datetime.utcnow().isoformat()
     }
+
+@app.get("/taxbit/tokens")
+async def get_token_registry():
+    """
+    Get list of registered tokens and their metadata
+
+    Returns:
+        List of tokens with their symbols, decimals, and names
+    """
+    try:
+        tokens = []
+        for denom, info in taxbit_service.token_registry.tokens.items():
+            tokens.append({
+                "denomination": denom,
+                "symbol": info["symbol"],
+                "decimals": info["decimals"],
+                "name": info["name"]
+            })
+
+        return {
+            "tokens": tokens,
+            "total_count": len(tokens),
+            "timestamp": datetime.utcnow().isoformat()
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to get token registry: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get tokens: {str(e)}")
+
+@app.post("/taxbit/tokens")
+async def register_token(denom: str, symbol: str, decimals: int, name: str):
+    """
+    Register a new token in the registry
+
+    Args:
+        denom: Token denomination or contract address
+        symbol: Token symbol (e.g., "USDC")
+        decimals: Number of decimal places
+        name: Human-readable token name
+    """
+    try:
+        taxbit_service.token_registry.register_token(denom, symbol, decimals, name)
+
+        return {
+            "message": f"Token {symbol} registered successfully",
+            "token": {
+                "denomination": denom,
+                "symbol": symbol,
+                "decimals": decimals,
+                "name": name
+            },
+            "timestamp": datetime.utcnow().isoformat()
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to register token: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to register token: {str(e)}")
+
+@app.get("/taxbit/stats/{address}")
+async def get_address_stats(address: str, start_date: Optional[str] = None, end_date: Optional[str] = None):
+    """
+    Get transaction statistics for an address
+
+    Args:
+        address: Cintara wallet address
+        start_date: Optional start date (ISO format)
+        end_date: Optional end date (ISO format)
+
+    Returns:
+        Statistics about transactions, categories, and amounts
+    """
+    try:
+        logger.info(f"Generating stats for address: {address}")
+
+        # Parse date filters
+        parsed_start_date = None
+        parsed_end_date = None
+
+        if start_date:
+            try:
+                parsed_start_date = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
+            except ValueError:
+                raise HTTPException(status_code=400, detail="Invalid start_date format. Use ISO 8601.")
+
+        if end_date:
+            try:
+                parsed_end_date = datetime.fromisoformat(end_date.replace('Z', '+00:00'))
+            except ValueError:
+                raise HTTPException(status_code=400, detail="Invalid end_date format. Use ISO 8601.")
+
+        # Fetch transactions
+        transactions = taxbit_service.fetch_transactions_by_address(address, parsed_start_date, parsed_end_date)
+
+        # Calculate statistics
+        stats = {
+            "total_transactions": len(transactions),
+            "categories": {},
+            "currencies": {},
+            "date_range": {
+                "start_date": start_date,
+                "end_date": end_date,
+                "first_transaction": None,
+                "last_transaction": None
+            },
+            "totals": {
+                "total_inbound": 0,
+                "total_outbound": 0,
+                "total_fees": 0
+            }
+        }
+
+        if transactions:
+            # Sort by timestamp to get first/last
+            sorted_txs = sorted(transactions, key=lambda x: x.get('timestamp', ''))
+            if sorted_txs:
+                stats["date_range"]["first_transaction"] = sorted_txs[0].get('timestamp')
+                stats["date_range"]["last_transaction"] = sorted_txs[-1].get('timestamp')
+
+        # Process each transaction for statistics
+        for tx in transactions:
+            try:
+                taxbit_tx = taxbit_service.convert_transaction(tx)
+
+                # Count by category
+                category = taxbit_tx.category
+                if category:
+                    stats["categories"][category] = stats["categories"].get(category, 0) + 1
+
+                # Count by currency and accumulate amounts
+                if taxbit_tx.in_currency:
+                    currency = taxbit_tx.in_currency
+                    if currency not in stats["currencies"]:
+                        stats["currencies"][currency] = {"inbound": 0, "outbound": 0}
+                    stats["currencies"][currency]["inbound"] += taxbit_tx.in_amount or 0
+                    stats["totals"]["total_inbound"] += taxbit_tx.in_amount or 0
+
+                if taxbit_tx.out_currency:
+                    currency = taxbit_tx.out_currency
+                    if currency not in stats["currencies"]:
+                        stats["currencies"][currency] = {"inbound": 0, "outbound": 0}
+                    stats["currencies"][currency]["outbound"] += taxbit_tx.out_amount or 0
+                    stats["totals"]["total_outbound"] += taxbit_tx.out_amount or 0
+
+                if taxbit_tx.fee:
+                    stats["totals"]["total_fees"] += taxbit_tx.fee or 0
+
+            except Exception as e:
+                logger.warning(f"Failed to process transaction for stats: {e}")
+                continue
+
+        stats["timestamp"] = datetime.utcnow().isoformat()
+        return stats
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to generate stats for {address}: {e}")
+        raise HTTPException(status_code=500, detail=f"Stats generation failed: {str(e)}")
 
 def _get_category_description(category) -> str:
     """Get human-readable description for TaxBit category"""
