@@ -17,12 +17,19 @@ import logging
 import requests
 import base64
 import json
-import psycopg2
-import psycopg2.extras
 from datetime import datetime, timezone, timedelta
 from typing import List, Dict, Any, Optional
 from enum import Enum
 from decimal import Decimal
+
+# Optional imports for database functionality
+try:
+    import psycopg2
+    import psycopg2.extras
+    PSYCOPG2_AVAILABLE = True
+except ImportError:
+    PSYCOPG2_AVAILABLE = False
+    psycopg2 = None
 
 logger = logging.getLogger(__name__)
 
@@ -163,9 +170,18 @@ class TaxBitService:
         
     def get_db_connection(self):
         """Get database connection to indexer PostgreSQL database"""
+        # Check if database is disabled in config
+        if (self.db_config.get("host") == "disabled" or
+            self.db_config.get("host") in ["localhost", "127.0.0.1"] and
+            self.db_config.get("port") == 0):
+            logger.info("Database disabled in configuration, using RPC mode")
+            return None
+
+        if not PSYCOPG2_AVAILABLE:
+            logger.info("psycopg2 not available, using RPC mode")
+            return None
+
         try:
-            import psycopg2
-            import psycopg2.extras
             return psycopg2.connect(
                 host=self.db_config["host"],
                 port=self.db_config["port"],
@@ -173,11 +189,8 @@ class TaxBitService:
                 user=self.db_config["user"],
                 password=self.db_config["password"]
             )
-        except ImportError:
-            logger.warning("psycopg2 not available, falling back to RPC methods")
-            return None
         except Exception as e:
-            logger.warning(f"Database connection failed: {e}, falling back to RPC methods")
+            logger.info(f"Database connection failed: {e}, using RPC mode")
             return None
 
     def fetch_transactions_from_db(self, address: str, start_date: Optional[datetime] = None,
@@ -188,7 +201,8 @@ class TaxBitService:
             return []
 
         try:
-            import psycopg2.extras
+            if not PSYCOPG2_AVAILABLE:
+                return []
             cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
             # Base query for transactions involving the address

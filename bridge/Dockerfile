@@ -8,11 +8,8 @@ RUN apt-get update && apt-get install -y \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Create requirements file
-RUN echo "fastapi==0.104.1" > requirements.txt && \
-    echo "uvicorn[standard]==0.24.0" >> requirements.txt && \
-    echo "requests==2.31.0" >> requirements.txt && \
-    echo "pydantic==2.5.0" >> requirements.txt
+# Copy requirements file
+COPY requirements.txt /app/requirements.txt
 
 # Install Python dependencies
 RUN pip install --no-cache-dir --upgrade pip && \
