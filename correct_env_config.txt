@@ -1,0 +1,38 @@
+# CORRECT .env Configuration for your EC2 Cintara setup
+# Copy this to your /home/ubuntu/cintara-node-llm-bridge/.env file
+
+# Existing configuration (keep these)
+PUBLIC_IP=54.204.68.183
+CHAIN_ID=cintara_11001-1
+MONIKER=cintara-node-ec2
+RPC_PORT=26657
+P2P_PORT=26656
+TARGETPLATFORM=linux/amd64
+RUNTIME_PLATFORM=linux/amd64
+
+LLAMA_REPO=ghcr.io/ggerganov/llama.cpp:server
+LLAMA_DIGEST=sha256:42d562e394e22fc1b05d6f0ee9179b276b80a115217c8d668dc8c2fc5b1302ac
+
+MODEL_FILE=tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf
+CTX_SIZE=2048
+LLM_THREADS=4
+BRIDGE_LOG_LEVEL=info
+
+# TaxBit Service Configuration (UPDATED)
+LLAMA_SERVER_URL=http://localhost:8000
+CINTARA_NODE_URL=http://localhost:26657
+
+# Database Configuration - Use RPC mode (no external PostgreSQL)
+# The TaxBit service will automatically use RPC fallback mode
+DB_HOST=disabled
+DB_PORT=0
+DB_NAME=disabled
+DB_USER=disabled
+DB_PASSWORD=disabled
+
+# Keyring Security Settings
+KEYRING_PASSWORD=<GENERATE_SECURE_PASSWORD>
+
+# TaxBit Service Options
+LOG_LEVEL=DEBUG
+AI_FEATURES_ENABLED=true
