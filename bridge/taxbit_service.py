@@ -179,13 +179,30 @@ class TaxBitService:
             "password": "postgres"
         }
 
-        # LevelDB paths from analysis
+        # LevelDB paths from analysis - try multiple possible locations
         self.leveldb_paths = {
-            'tx_index': '/data/.tmp-cintarad/data/tx_index.db',
-            'evm_index': '/data/.tmp-cintarad/data/evmindexer.db',
-            'application': '/data/.tmp-cintarad/data/application.db',
-            'blockstore': '/data/.tmp-cintarad/data/blockstore.db',
-            'state': '/data/.tmp-cintarad/data/state.db'
+            'tx_index': [
+                '/data/.tmp-cintarad/data/tx_index.db',
+                '/home/ubuntu/.cintarad/data/tx_index.db',
+                './data/tx_index.db',
+                '/app/data/tx_index.db'
+            ],
+            'evm_index': [
+                '/data/.tmp-cintarad/data/evmindexer.db',
+                '/home/ubuntu/.cintarad/data/evmindexer.db'
+            ],
+            'application': [
+                '/data/.tmp-cintarad/data/application.db',
+                '/home/ubuntu/.cintarad/data/application.db'
+            ],
+            'blockstore': [
+                '/data/.tmp-cintarad/data/blockstore.db',
+                '/home/ubuntu/.cintarad/data/blockstore.db'
+            ],
+            'state': [
+                '/data/.tmp-cintarad/data/state.db',
+                '/home/ubuntu/.cintarad/data/state.db'
+            ]
         }
         
     def get_db_connection(self):
@@ -219,24 +236,38 @@ class TaxBitService:
             logger.info("plyvel not available for LevelDB access")
             return None
 
-        db_path = self.leveldb_paths.get(db_name)
-        if not db_path:
+        db_paths = self.leveldb_paths.get(db_name)
+        if not db_paths:
             logger.error(f"Unknown database: {db_name}")
             return None
 
-        try:
-            import os
-            if not os.path.exists(db_path):
-                logger.warning(f"LevelDB path does not exist: {db_path}")
-                return None
+        # Try each path until we find one that works
+        import os
+        for db_path in db_paths:
+            try:
+                logger.info(f"Trying LevelDB path: {db_path}")
 
-            # Open in read-only mode to avoid conflicts with running node
-            db = plyvel.DB(db_path, create_if_missing=False)
-            logger.info(f"Successfully opened LevelDB: {db_path}")
-            return db
-        except Exception as e:
-            logger.error(f"Failed to open LevelDB {db_path}: {e}")
-            return None
+                if not os.path.exists(db_path):
+                    logger.warning(f"LevelDB path does not exist: {db_path}")
+                    continue
+
+                # Check if directory is accessible
+                if not os.access(db_path, os.R_OK):
+                    logger.warning(f"LevelDB path not readable: {db_path}")
+                    continue
+
+                # Open in read-only mode to avoid conflicts with running node
+                db = plyvel.DB(db_path, create_if_missing=False)
+                logger.info(f"✅ Successfully opened LevelDB: {db_path}")
+                return db
+
+            except Exception as e:
+                logger.warning(f"Failed to open LevelDB {db_path}: {e}")
+                continue
+
+        logger.error(f"❌ Could not access any LevelDB path for {db_name}")
+        logger.error(f"   Tried paths: {db_paths}")
+        return None
 
     def fetch_transactions_from_db(self, address: str, start_date: Optional[datetime] = None,
                                   end_date: Optional[datetime] = None) -> List[Dict[str, Any]]:

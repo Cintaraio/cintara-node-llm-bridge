@@ -43,6 +43,9 @@ services:
     network_mode: "host"  # Use host networking for better connectivity to host services
     ports:
       - "8080:8080"  # Explicitly bind bridge API port
+    volumes:
+      - /data/.tmp-cintarad/data:/data/.tmp-cintarad/data:ro  # Mount LevelDB data directory read-only
+      - /home/ubuntu/.cintarad/data:/home/ubuntu/.cintarad/data:ro  # Alternative path if using home directory
     environment:
       - LLAMA_SERVER_URL=http://localhost:8000
       - CINTARA_NODE_URL=http://localhost:26657  # Connect to host node via localhost
