@@ -135,7 +135,8 @@ def test_taxbit_export():
             end_date=end_date
         )
 
-        print(f"   Generated CSV with {len(csv_output.split('\\n'))} lines")
+        lines_count = len(csv_output.split('\n'))
+        print(f"   Generated CSV with {lines_count} lines")
         print("   CSV Preview (first 300 chars):")
         print(f"   {csv_output[:300]}...")
 
@@ -169,7 +170,7 @@ def test_service_status():
         ("EVM JSON-RPC", service.evm_rpc_url),
     ]
 
-    print("\\nEndpoint Status:")
+    print("\nEndpoint Status:")
     for name, url in endpoints:
         try:
             if name == "EVM JSON-RPC":
@@ -197,13 +198,13 @@ def main():
         test_taxbit_export()
         test_service_status()
 
-        print("\\n" + "=" * 50)
+        print("\n" + "=" * 50)
         print("TEST SUITE COMPLETE")
         print("Check the logs above for any errors or issues.")
         print("If tests pass, the updated TaxBit service is ready for production!")
 
     except Exception as e:
-        print(f"\\nTest suite failed with error: {e}")
+        print(f"\nTest suite failed with error: {e}")
         logger.exception("Test suite error")
         sys.exit(1)
 
