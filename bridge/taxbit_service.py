@@ -260,7 +260,14 @@ class TaxBitService:
                     continue
 
                 # Open in read-only mode to avoid conflicts with running node
-                db = plyvel.DB(db_path, create_if_missing=False)
+                # For readonly copies, allow lock file creation but use read-only access
+                if 'readonly' in db_path:
+                    logger.info(f"Opening readonly copy database: {db_path}")
+                    db = plyvel.DB(db_path, create_if_missing=False)
+                else:
+                    logger.info(f"Opening original database in read-only mode: {db_path}")
+                    db = plyvel.DB(db_path, create_if_missing=False)
+
                 logger.info(f"✅ Successfully opened LevelDB: {db_path}")
                 return db
 
