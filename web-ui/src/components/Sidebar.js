@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import styled from 'styled-components';
-import { Activity, MessageCircle, Settings, Search, BarChart3 } from 'lucide-react';
+import { Activity, MessageCircle, Settings, Search, BarChart3, FileText } from 'lucide-react';
 
 const SidebarContainer = styled.div`
   width: 250px;
@@ -100,6 +100,7 @@ const Sidebar = () => {
     { path: '/status', label: 'Node Status', icon: Activity },
     { path: '/chat', label: 'AI Chat', icon: MessageCircle },
     { path: '/diagnostics', label: 'Diagnostics', icon: Search },
+    { path: '/taxbit', label: 'TaxBit Export', icon: FileText },
   ];
 
   return (

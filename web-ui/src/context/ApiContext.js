@@ -81,6 +81,39 @@ export const ApiProvider = ({ children }) => {
     return apiCall('/debug/llm');
   }, [apiCall]);
 
+  // TaxBit API functions
+  const previewTaxBitTransactions = useCallback((address, options = {}) => {
+    const { limit = 10, startDate, endDate } = options;
+    let endpoint = `/taxbit/preview/${address}?limit=${limit}`;
+
+    if (startDate) {
+      endpoint += `&start_date=${startDate}`;
+    }
+    if (endDate) {
+      endpoint += `&end_date=${endDate}`;
+    }
+
+    return apiCall(endpoint);
+  }, [apiCall]);
+
+  const exportTaxBitTransactions = useCallback((address, options = {}) => {
+    const { startDate, endDate } = options;
+    let endpoint = `/taxbit/export/${address}`;
+
+    const params = new URLSearchParams();
+    if (startDate) params.append('start_date', startDate);
+    if (endDate) params.append('end_date', endDate);
+
+    if (params.toString()) {
+      endpoint += `?${params.toString()}`;
+    }
+
+    return apiCall(endpoint, {
+      method: 'GET',
+      responseType: 'blob'
+    });
+  }, [apiCall]);
+
   const value = {
     loading,
     error,
@@ -92,7 +125,9 @@ export const ApiProvider = ({ children }) => {
     getNodePeers,
     analyzeLogs,
     analyzeBlockTransactions,
-    debugLLM
+    debugLLM,
+    previewTaxBitTransactions,
+    exportTaxBitTransactions
   };
 
   return (

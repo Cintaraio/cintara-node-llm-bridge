@@ -7,6 +7,7 @@ import Chat from './pages/Chat';
 import ChatOnly from './pages/ChatOnly';
 import NodeStatus from './pages/NodeStatus';
 import Diagnostics from './pages/Diagnostics';
+import TaxBit from './pages/TaxBit';
 import { ApiProvider } from './context/ApiContext';
 
 const AppContainer = styled.div`
@@ -57,6 +58,14 @@ function App() {
               <Sidebar />
               <MainContent>
                 <Diagnostics />
+              </MainContent>
+            </AppContainer>
+          } />
+          <Route path="/taxbit" element={
+            <AppContainer>
+              <Sidebar />
+              <MainContent>
+                <TaxBit />
               </MainContent>
             </AppContainer>
           } />
