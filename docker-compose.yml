@@ -46,6 +46,7 @@ services:
     volumes:
       - /data/.tmp-cintarad:/data/.tmp-cintarad:ro  # Mount entire cintarad directory
       - /data/.tmp-cintarad/data/tx_index.db:/data/tx_index.db:ro  # Direct mount of tx_index database
+      - /data/.tmp-cintarad/data/tx_index_readonly.db:/data/tx_index_readonly.db:ro  # Readonly copy mount
       - /home/ubuntu/.cintarad/data:/home/ubuntu/.cintarad/data:ro  # Alternative path if using home directory
     user: "0:0"  # Run as root to access root-owned database files
     environment:

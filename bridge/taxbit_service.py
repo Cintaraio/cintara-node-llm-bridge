@@ -182,6 +182,8 @@ class TaxBitService:
         # LevelDB paths from analysis - try multiple possible locations
         self.leveldb_paths = {
             'tx_index': [
+                '/data/tx_index_readonly.db',  # Readonly copy - should work!
+                '/data/.tmp-cintarad/data/tx_index_readonly.db',  # Host path for readonly copy
                 '/data/tx_index.db',  # Direct mount path
                 '/data/.tmp-cintarad/data/tx_index.db',
                 '/home/ubuntu/.cintarad/data/tx_index.db',
@@ -272,17 +274,17 @@ class TaxBitService:
 
     def fetch_transactions_from_db(self, address: str, start_date: Optional[datetime] = None,
                                   end_date: Optional[datetime] = None) -> List[Dict[str, Any]]:
-        """Fetch transactions from database (PRODUCTION: Node API Integration)"""
-        logger.info("🎯 PRODUCTION MODE: Using Node API integration due to database lock conflicts")
+        """Fetch transactions from database (PRODUCTION: Readonly LevelDB + Node API)"""
+        logger.info("🎯 PRODUCTION MODE: Trying readonly LevelDB copy first, then Node API")
 
-        # First try LevelDB (if available and not locked)
+        # First try LevelDB readonly copy (should bypass lock conflicts)
         leveldb_transactions = self._fetch_transactions_from_leveldb(address, start_date, end_date)
         if leveldb_transactions:
             logger.info(f"✅ Found {len(leveldb_transactions)} transactions via PRODUCTION LevelDB")
             return leveldb_transactions
 
         # Fallback to enhanced node API queries
-        logger.info("🔄 LevelDB locked by running node - using enhanced API queries")
+        logger.info("🔄 LevelDB readonly copy failed - using enhanced API queries")
         api_transactions = self._fetch_transactions_via_enhanced_api(address, start_date, end_date)
         if api_transactions:
             logger.info(f"✅ Found {len(api_transactions)} transactions via enhanced Node API")
