@@ -1,0 +1,1141 @@
+root@ip-172-31-32-239:/home/ubuntu/cintara-node-llm-bridge# cat cintara_analysis_report.txt
+CINTARA NODE CONFIGURATION ANALYSIS REPORT
+Generated at: 2025-09-21 16:28:01
+Hostname: ip-172-31-32-239
+User: root
+
+==================== 1. SYSTEM OVERVIEW ====================
+
+$ uname -a
+Linux ip-172-31-32-239 6.8.0-1036-aws #38~22.04.1-Ubuntu SMP Fri Aug 22 15:44:33 UTC 2025 x86_64 x86_64 x86_64 GNU/Linux
+
+$ df -h
+Filesystem       Size  Used Avail Use% Mounted on
+/dev/root         29G   13G   17G  44% /
+tmpfs            3.8G     0  3.8G   0% /dev/shm
+tmpfs            1.6G  1.2M  1.6G   1% /run
+tmpfs            5.0M     0  5.0M   0% /run/lock
+efivarfs         128K  3.8K  120K   4% /sys/firmware/efi/efivars
+/dev/nvme0n1p15  105M  6.1M   99M   6% /boot/efi
+tmpfs            779M  4.0K  779M   1% /run/user/0
+
+$ free -m
+               total        used        free      shared  buff/cache   available
+Mem:            7780        1103        3780           3        2896        6391
+Swap:              0           0           0
+
+==================== 2. DOCKER ENVIRONMENT ====================
+
+$ docker --version
+Docker version 28.1.1+1, build 068a01e
+
+$ docker-compose --version
+Docker Compose version v2.33.1
+
+$ docker ps -a
+CONTAINER ID   IMAGE                                COMMAND                  CREATED      STATUS                       PORTS               NAMES
+61c49a1ea740   cintara-node-llm-bridge-web-ui       "/docker-entrypoint.…"   3 days ago   Up About an hour (healthy)               cintara-web-ui
+89e4773f1548   cintara-node-llm-bridge-bridge       "uvicorn app:app --h…"   3 days ago   Up About an hour (healthy)               cintara-ai-bridge
+01345546d32d   ghcr.io/ggerganov/llama.cpp:server   "/app/llama-server -…"   3 days ago   Up About an hour (healthy)   0.0.0.0:8000->8000/tcp, [::]:8000->8000/tcp   cintara-llm
+
+$ docker images | grep -i cintara
+cintara-node-llm-bridge-bridge   latest    acd2a6b0231d   3 days ago     194MB
+cintara-node-llm-bridge-web-ui   latest    eb8295c70b6e   3 days ago     52.8MB
+
+$ docker volume ls
+DRIVER    VOLUME NAME
+
+$ docker network ls
+NETWORK ID     NAME                              DRIVER    SCOPE
+4f167c0ee1cb   bridge                            bridge    local
+12e7031d2ca2   cintara-node-llm-bridge_default   bridge    local
+240c96d58bc5   host                              host      local
+274da078b7c7   none                              null      local
+
+==================== 3. RUNNING PROCESSES ====================
+
+$ ps aux | grep -E '(cintara|tendermint|cosmos)' | grep -v grep
+root        6664 16.5  3.5 2640004 279544 pts/1  Sl+  15:52   5:55 cintarad start --home /data/.tmp-cintarad/
+root       13640  0.0  0.0   7896  3712 pts/3    S+   16:28   0:00 /bin/bash ./analyze_cintara_setup.sh
+root       13935  0.0  0.0   7896  2020 pts/3    S+   16:28   0:00 /bin/bash ./analyze_cintara_setup.sh
+root       13936  0.0  0.0   6196  1920 pts/3    S+   16:28   0:00 tee -a cintara_analysis_report.txt
+
+$ netstat -tulpn | grep -E '(26657|1317|9090|8080)'
+./analyze_cintara_setup.sh: line 25: netstat: command not found
+
+$ ss -tulpn | grep -E '(26657|1317|9090|8080)'
+tcp   LISTEN 0      2048              0.0.0.0:8080       0.0.0.0:*    users:(("uvicorn",pid=1353,fd=11))
+tcp   LISTEN 0      4096                    *:9090             *:*    users:(("cintarad",pid=6664,fd=120))
+tcp   LISTEN 0      4096                    *:1317             *:*    users:(("cintarad",pid=6664,fd=123))
+tcp   LISTEN 0      4096                    *:26657            *:*    users:(("cintarad",pid=6664,fd=107))
+
+==================== 4. CINTARA NODE RPC TESTS ====================
+
+Testing Cintara node connectivity and capabilities...
+$ curl -s http://localhost:26657/status | jq '.' || curl -s http://localhost:26657/status
+{
+  "jsonrpc": "2.0",
+  "id": -1,
+  "result": {
+    "node_info": {
+      "protocol_version": {
+        "p2p": "8",
+        "block": "11",
+        "app": "0"
+      },
+      "id": "8310ffe4898c6f0487d3b3d96a294f469166d5db",
+      "listen_addr": "tcp://0.0.0.0:26656",
+      "network": "cintara_11001-1",
+      "version": "0.38.15",
+      "channels": "40202122233038606100",
+      "moniker": "scrt-netwrk-test",
+      "other": {
+        "tx_index": "on",
+        "rpc_address": "tcp://0.0.0.0:26657"
+      }
+    },
+    "sync_info": {
+      "latest_block_hash": "3B1C4146D27C0FCA8841B54E2EB1AFDB8429F83C811DB7842FB9CA37BB883F47",
+      "latest_app_hash": "D238684C6CC8AB384777F28491C6AD43560775D8865497E9EC8B1B7C7FA7D32D",
+      "latest_block_height": "1466272",
+      "latest_block_time": "2025-09-21T16:27:54.072747479Z",
+      "earliest_block_hash": "3C4B0161CA197D990FF5B858F29A24ADF3DFA3A3938FDE594F307489D4701DE7",
+      "earliest_app_hash": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "earliest_block_height": "1",
+      "earliest_block_time": "2025-06-11T10:44:56.268687316Z",
+      "catching_up": false
+    },
+    "validator_info": {
+      "address": "C829E18D3B48631415481393FE1A904D6EED1B15",
+      "pub_key": {
+        "type": "tendermint/PubKeyEd25519",
+        "value": "dAoPXHns1Rr0Le6G/ZKbWt0D8VP3XIArWw9JWgNW8C8="
+      },
+      "voting_power": "0"
+    }
+  }
+}
+
+$ curl -s http://localhost:26657/net_info | jq '.result.n_peers' || curl -s http://localhost:26657/net_info
+"3"
+
+$ curl -s http://localhost:26657/genesis | jq '.result.genesis.chain_id' || curl -s http://localhost:26657/genesis | head -20
+"cintara_11001-1"
+
+==================== 5. TRANSACTION INDEXING CAPABILITIES ====================
+
+Testing transaction search and indexing...
+$ curl -s 'http://localhost:26657/tx_search?query=tx.height>1&per_page=1' | jq '.result.total_count' || curl -s 'http://localhost:26657/tx_search?query=tx.height>1&per_page=1'
+null
+
+Latest block height: 1466272
+$ curl -s 'http://localhost:26657/block?height=1466272' | jq '.result.block.data.txs | length' || curl -s 'http://localhost:26657/block?height=1466272' | grep -o '"txs":\[.*\]' | wc -c
+0
+
+Scanning recent blocks for transactions...
+Block 1466267: 0 transactions
+Block 1466268: 0 transactions
+Block 1466269: 0 transactions
+Block 1466270: 0 transactions
+Block 1466271: 0 transactions
+Block 1466272: 0 transactions
+==================== 6. REST API TESTS ====================
+
+Testing various REST API endpoints...
+$ curl -s http://localhost:1317/cosmos/base/tendermint/v1beta1/node_info | jq '.default_node_info.network' || curl -s http://localhost:1317/cosmos/base/tendermint/v1beta1/node_info
+"cintara_11001-1"
+
+$ curl -s http://localhost:8080/cosmos/base/tendermint/v1beta1/node_info | jq '.default_node_info.network' || curl -s http://localhost:8080/cosmos/base/tendermint/v1beta1/node_info
+null
+
+$ curl -s http://localhost:3000/cosmos/base/tendermint/v1beta1/node_info | jq '.default_node_info.network' || curl -s http://localhost:3000/cosmos/base/tendermint/v1beta1/node_info
+parse error: Invalid numeric literal at line 1, column 10
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cintara Agentic Chain</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #ffffff;
+            color: #24292f;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .logo-container {
+            text-align: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .logo {
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 1rem;
+        }
+
+        .logo img {
+            border-radius: 16px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 3rem;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            background: linear-gradient(45deg, #0969da, #218bff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .header p {
+            color: #656d76;
+            font-size: 1.1rem;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .card {
+            background: #f6f8fa;
+            border: 1px solid #d1d9e0;
+            border-radius: 8px;
+            padding: 1.5rem;
+            transition: border-color 0.2s ease;
+        }
+
+        .card:hover {
+            border-color: #0969da;
+        }
+
+        .card h3 {
+            font-size: 1.25rem;
+            margin-bottom: 1rem;
+            color: #24292f;
+        }
+
+        .status {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 12px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            margin-bottom: 1rem;
+        }
+
+        .status.loading {
+            background: #fff8dc;
+            color: #bf8700;
+            border: 1px solid #d1a700;
+        }
+
+        .status.healthy {
+            background: #dafbe1;
+            color: #1a7f37;
+            border: 1px solid #2da44e;
+        }
+
+        .status.error {
+            background: #ffebe9;
+            color: #cf222e;
+            border: 1px solid #da3633;
+        }
+
+        .metrics {
+            display: grid;
+            gap: 0.5rem;
+        }
+
+        .metric {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.5rem;
+            background: #ffffff;
+            border-radius: 4px;
+            border: 1px solid #d1d9e0;
+        }
+
+        .metric-label {
+            color: #656d76;
+        }
+
+        .metric-value {
+            color: #24292f;
+            font-weight: 600;
+        }
+
+        .chat-section {
+            background: #f6f8fa;
+            border: 1px solid #d1d9e0;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .taxbit-section {
+            background: #f6f8fa;
+            border: 1px solid #d1d9e0;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .taxbit-input {
+            display: flex;
+            gap: 0.75rem;
+            margin-top: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .taxbit-input input {
+            flex: 1;
+            min-width: 300px;
+            background: #ffffff;
+            border: 1px solid #d1d9e0;
+            border-radius: 6px;
+            padding: 0.75rem;
+            color: #24292f;
+        }
+
+        .btn-primary {
+            background: #0969da;
+            border-color: #0969da;
+        }
+
+        .btn-primary:hover {
+            background: #0860ca;
+            border-color: #0860ca;
+        }
+
+        .chat-input {
+            display: flex;
+            gap: 0.75rem;
+            margin-top: 1rem;
+        }
+
+        .chat-input input {
+            flex: 1;
+            background: #ffffff;
+            border: 1px solid #d1d9e0;
+            border-radius: 6px;
+            padding: 0.75rem;
+            color: #24292f;
+        }
+
+        .chat-input input:focus {
+            outline: none;
+            border-color: #0969da;
+        }
+
+        .btn {
+            background: #2da44e;
+            border: 1px solid #2da44e;
+            border-radius: 6px;
+            padding: 0.75rem 1rem;
+            color: white;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn:hover {
+            background: #2c974b;
+            border-color: #2c974b;
+        }
+
+        .btn:disabled {
+            background: #8c959f;
+            border-color: #8c959f;
+            cursor: not-allowed;
+            opacity: 0.5;
+        }
+
+        .response {
+            margin-top: 1rem;
+            padding: 1rem;
+            background: #ffffff;
+            border: 1px solid #d1d9e0;
+            border-radius: 6px;
+            white-space: pre-wrap;
+            min-height: 60px;
+            max-height: 500px;
+            overflow-y: auto;
+            word-wrap: break-word;
+            line-height: 1.6;
+        }
+
+        .response::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .response::-webkit-scrollbar-track {
+            background: #f6f8fa;
+            border-radius: 4px;
+        }
+
+        .response::-webkit-scrollbar-thumb {
+            background: #d1d9e0;
+            border-radius: 4px;
+        }
+
+        .response::-webkit-scrollbar-thumb:hover {
+            background: #8c959f;
+        }
+
+        .endpoints {
+            background: #f6f8fa;
+            border: 1px solid #d1d9e0;
+            border-radius: 8px;
+            padding: 1.5rem;
+        }
+
+        .endpoint {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem;
+            background: #ffffff;
+            border: 1px solid #d1d9e0;
+            border-radius: 4px;
+            margin-bottom: 0.5rem;
+        }
+
+        .endpoint:last-child {
+            margin-bottom: 0;
+        }
+
+        .endpoint-url {
+            font-family: monospace;
+            color: #0969da;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo-container">
+            <div class="logo">
+                <img src="image.png" alt="Cintara Logo" />
+            </div>
+        </div>
+
+        <div class="header">
+            <h1>Cintara Agentic Chain</h1>
+            <p>The World's First Agentic AI-Native Blockchain</p>
+        </div>
+
+        <div class="grid">
+            <div class="card">
+                <h3>System Health</h3>
+                <span class="status loading" id="system-status">Loading...</span>
+                <div class="metrics" id="system-metrics">
+                    <div class="metric">
+                        <span class="metric-label">LLM Server</span>
+                        <span class="metric-value" id="llm-status">Checking...</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">AI Bridge</span>
+                        <span class="metric-value" id="bridge-status">Checking...</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Blockchain Node</span>
+                        <span class="metric-value" id="node-status">Checking...</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>Node Status</h3>
+                <span class="status loading" id="node-health-status">Loading...</span>
+                <div class="metrics" id="node-metrics">
+                    <div class="metric">
+                        <span class="metric-label">Block Height</span>
+                        <span class="metric-value" id="block-height">-</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Catching Up</span>
+                        <span class="metric-value" id="catching-up">-</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Peers</span>
+                        <span class="metric-value" id="peer-count">-</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="chat-section">
+            <h3>💬 AI Assistant</h3>
+            <p style="color: #656d76; margin-bottom: 1rem;">Ask questions about your Cintara node status and performance</p>
+            <div class="chat-input">
+                <input type="text" id="chat-input" placeholder="Ask about your node status, performance, or any blockchain questions..." />
+                <button class="btn" onclick="sendMessage()">Send</button>
+            </div>
+            <div class="response" id="chat-response" style="display: none;"></div>
+        </div>
+
+        <div class="taxbit-section">
+            <h3>📊 TaxBit Integration</h3>
+            <p style="color: #656d76; margin-bottom: 1rem;">Export your Cintara transactions for tax reporting with TaxBit compatibility</p>
+            <div class="taxbit-input">
+                <input type="text" id="taxbit-address" placeholder="Enter your address (cintara1..., cosmos1..., or 0x...)" />
+                <button class="btn" onclick="previewTaxBit()">Preview</button>
+                <button class="btn btn-primary" onclick="exportTaxBit()">Export CSV</button>
+            </div>
+            <div class="response" id="taxbit-response" style="display: none;"></div>
+        </div>
+
+        <div class="endpoints">
+            <h3>🔗 API Endpoints</h3>
+            <div class="endpoint">
+                <span>Cintara Node RPC</span>
+                <span class="endpoint-url">http://localhost:26657</span>
+            </div>
+            <div class="endpoint">
+                <span>AI Bridge API</span>
+                <span class="endpoint-url">http://localhost:8080</span>
+            </div>
+            <div class="endpoint">
+                <span>LLM Server</span>
+                <span class="endpoint-url">http://localhost:8000</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Health check functions
+        async function checkHealth() {
+            try {
+                const response = await fetch('/api/health');
+                const data = await response.json();
+
+                document.getElementById('system-status').textContent = data.status;
+                document.getElementById('system-status').className = `status ${data.status === 'ok' ? 'healthy' : 'error'}`;
+
+                document.getElementById('llm-status').textContent = data.components.llm_server;
+                document.getElementById('bridge-status').textContent = data.components.blockchain_node;
+                document.getElementById('node-status').textContent = data.components.blockchain_node;
+            } catch (error) {
+                document.getElementById('system-status').textContent = 'Error';
+                document.getElementById('system-status').className = 'status error';
+            }
+        }
+
+        async function checkNodeStatus() {
+            try {
+                const response = await fetch('/api/node/status');
+                const data = await response.json();
+
+                document.getElementById('node-health-status').textContent = data.status;
+                document.getElementById('node-health-status').className = `status ${data.status === 'healthy' ? 'healthy' : 'error'}`;
+
+                if (data.details) {
+                    document.getElementById('block-height').textContent = data.details.latest_block_height || '0';
+                    document.getElementById('catching-up').textContent = data.details.catching_up ? 'Yes' : 'No';
+                }
+            } catch (error) {
+                document.getElementById('node-health-status').textContent = 'Error';
+                document.getElementById('node-health-status').className = 'status error';
+            }
+        }
+
+        async function checkPeers() {
+            try {
+                const response = await fetch('/api/node/peers');
+                const data = await response.json();
+                document.getElementById('peer-count').textContent = data.total_peers || '0';
+            } catch (error) {
+                document.getElementById('peer-count').textContent = 'Error';
+            }
+        }
+
+        // Chat function
+        async function sendMessage() {
+            const input = document.getElementById('chat-input');
+            const responseDiv = document.getElementById('chat-response');
+            const message = input.value.trim();
+
+            if (!message) return;
+
+            responseDiv.style.display = 'block';
+            responseDiv.textContent = 'Thinking...';
+            input.value = '';
+
+            try {
+                const response = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ message: message })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                console.log('Full API response:', data); // Debug log
+
+                // Handle different response formats
+                const aiResponse = data.response || data.message || data.content || JSON.stringify(data);
+
+                responseDiv.innerHTML = `<div style="margin-bottom: 1rem;"><strong>You:</strong> ${message}</div><div><strong>AI:</strong> ${aiResponse}</div>`;
+
+                // Auto-scroll to bottom if content overflows
+                responseDiv.scrollTop = responseDiv.scrollHeight;
+
+            } catch (error) {
+                console.error('Chat error:', error);
+                responseDiv.textContent = `Error: ${error.message}`;
+            }
+        }
+
+        // Enter key support for chat
+        document.getElementById('chat-input').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+
+        // TaxBit functions
+        async function previewTaxBit() {
+            const input = document.getElementById('taxbit-address');
+            const responseDiv = document.getElementById('taxbit-response');
+            const address = input.value.trim();
+
+            if (!address) {
+                alert('Please enter a Cintara address');
+                return;
+            }
+
+            // Validate address format (accept both Cosmos bech32 and Ethereum hex formats)
+            const isValidAddress = address.startsWith('cintara1') ||
+                                 address.startsWith('cosmos1') ||
+                                 (address.startsWith('0x') && address.length === 42);
+
+            if (!isValidAddress) {
+                alert('Please enter a valid address:\n- Cintara format: cintara1...\n- Cosmos format: cosmos1...\n- Ethereum format: 0x...');
+                return;
+            }
+
+            responseDiv.style.display = 'block';
+            responseDiv.textContent = 'Loading preview...';
+
+            try {
+                const response = await fetch(`/api/taxbit/preview/${encodeURIComponent(address)}`);
+                const data = await response.json();
+
+                if (response.ok) {
+                    responseDiv.innerHTML = `<div style="margin-bottom: 1rem;"><strong>Preview for ${address}</strong></div>` +
+                        `<div style="margin-bottom: 1rem;">Found ${data.preview_count} sample transactions:</div>` +
+                        `<pre style="background: #ffffff; padding: 1rem; border-radius: 4px; overflow-x: auto;">${JSON.stringify(data.transactions, null, 2)}</pre>` +
+                        `<div style="margin-top: 1rem; font-size: 0.875rem; color: #656d76;">${data.note}</div>`;
+                } else {
+                    responseDiv.textContent = `Error: ${data.detail || 'Failed to preview data'}`;
+                }
+
+            } catch (error) {
+                responseDiv.textContent = `Error: ${error.message}`;
+            }
+        }
+
+        async function exportTaxBit() {
+            const input = document.getElementById('taxbit-address');
+            const responseDiv = document.getElementById('taxbit-response');
+            const address = input.value.trim();
+
+            if (!address) {
+                alert('Please enter a Cintara address');
+                return;
+            }
+
+            // Validate address format (accept both Cosmos bech32 and Ethereum hex formats)
+            const isValidAddress = address.startsWith('cintara1') ||
+                                 address.startsWith('cosmos1') ||
+                                 (address.startsWith('0x') && address.length === 42);
+
+            if (!isValidAddress) {
+                alert('Please enter a valid address:\n- Cintara format: cintara1...\n- Cosmos format: cosmos1...\n- Ethereum format: 0x...');
+                return;
+            }
+
+            responseDiv.style.display = 'block';
+            responseDiv.textContent = 'Generating CSV export...';
+
+            try {
+                const response = await fetch(`/api/taxbit/export/${encodeURIComponent(address)}`);
+
+                if (response.ok) {
+                    // Create a download link
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `cintara_taxbit_export_${address.substring(0, 12)}_${new Date().toISOString().slice(0, 10)}.csv`;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+
+                    responseDiv.innerHTML = `<div style="color: #2da44e;"><strong>✅ CSV Export Successful!</strong></div>` +
+                        `<div>Your TaxBit-compatible CSV has been downloaded.</div>` +
+                        `<div style="margin-top: 0.5rem; font-size: 0.875rem; color: #656d76;">You can now import this file into TaxBit for tax reporting.</div>`;
+                } else {
+                    const errorData = await response.json();
+                    responseDiv.textContent = `Error: ${errorData.detail || 'Failed to export CSV'}`;
+                }
+
+            } catch (error) {
+                responseDiv.textContent = `Error: ${error.message}`;
+            }
+        }
+
+        // Initial load and periodic updates
+        checkHealth();
+        checkNodeStatus();
+        checkPeers();
+
+        // Update every 30 seconds
+        setInterval(() => {
+            checkHealth();
+            checkNodeStatus();
+            checkPeers();
+        }, 30000);
+    </script>
+</body>
+</html>
+==================== 7. CONFIGURATION FILES ====================
+
+Searching for Cintara configuration files...
+Found Cintara directories:
+/home/ubuntu/data/.tmp-cintarad
+/home/ubuntu/data/.tmp-cintarad/config
+/home/ubuntu/data/.tmp-cintarad/config/client.toml
+/home/ubuntu/data/.tmp-cintarad/config/app.toml
+/home/ubuntu/data/.tmp-cintarad/config/config.toml
+/home/ubuntu/data/.tmp-cintarad/data
+/home/ubuntu/data/.tmp-cintarad/data/application.db
+/home/ubuntu/data/.tmp-cintarad/data/application.db/LOCK
+/home/ubuntu/data/.tmp-cintarad/data/application.db/CURRENT
+/home/ubuntu/data/.tmp-cintarad/data/application.db/MANIFEST-000000
+
+$ find /home /root /opt /etc 2>/dev/null | grep -E '(app\.toml|config\.toml|genesis\.json)' | head -10
+/home/ubuntu/data/.tmp-cintarad/config/app.toml
+/home/ubuntu/data/.tmp-cintarad/config/config.toml
+/root/go/pkg/mod/github.com/cosmos/cosmos-sdk@v0.46.0-beta2.0.20230614103911-b3da8bb4e801/x/genutil/types/testdata/app_genesis.json
+/root/go/pkg/mod/github.com/cosmos/cosmos-sdk@v0.46.0-beta2.0.20230614103911-b3da8bb4e801/x/genutil/types/testdata/cmt_genesis.json
+/root/go/pkg/mod/github.com/pelletier/go-toml/v2@v2.0.8/benchmark/testdata/config.toml.gz
+/root/go/pkg/mod/github.com/cometbft/cometbft-db@v0.7.0/.changelog/config.toml
+/root/go/pkg/mod/github.com/cometbft/cometbft@v0.38.0-rc3/.changelog/config.toml
+/root/blockchain-node/testnet-script/genesis.json
+/root/.cintarad/config/app.toml
+/root/.cintarad/config/config.toml
+
+==================== 8. DOCKER CONTAINER ANALYSIS ====================
+
+Analyzing Docker containers for Cintara setup...
+Found Cintara containers: cintara-web-ui
+cintara-ai-bridge
+cintara-llm
+--- Analyzing container: cintara-web-ui ---
+$ docker inspect cintara-web-ui | jq '.[] | {Image, Mounts, NetworkSettings}'
+{
+  "Image": "sha256:eb8295c70b6e30184dd0860f5f5d7f29f119d4d3e28e676b9526cc6149a27104",
+  "Mounts": [],
+  "NetworkSettings": {
+    "Bridge": "",
+    "SandboxID": "fe20fc784dc1e75539169ae3133533cb894487c27b51b45bcc6fc346582459c3",
+    "SandboxKey": "/run/snap.docker/netns/default",
+    "Ports": {},
+    "HairpinMode": false,
+    "LinkLocalIPv6Address": "",
+    "LinkLocalIPv6PrefixLen": 0,
+    "SecondaryIPAddresses": null,
+    "SecondaryIPv6Addresses": null,
+    "EndpointID": "",
+    "Gateway": "",
+    "GlobalIPv6Address": "",
+    "GlobalIPv6PrefixLen": 0,
+    "IPAddress": "",
+    "IPPrefixLen": 0,
+    "IPv6Gateway": "",
+    "MacAddress": "",
+    "Networks": {
+      "host": {
+        "IPAMConfig": null,
+        "Links": null,
+        "Aliases": null,
+        "MacAddress": "",
+        "DriverOpts": null,
+        "GwPriority": 0,
+        "NetworkID": "240c96d58bc5de80e8aac14a4861e6f38041732b7919d242e55712d2a139eba3",
+        "EndpointID": "403f269d1036a1fa034ab06b0ebb462c62ba840393a0daf06887b292cb898f1e",
+        "Gateway": "",
+        "IPAddress": "",
+        "IPPrefixLen": 0,
+        "IPv6Gateway": "",
+        "GlobalIPv6Address": "",
+        "GlobalIPv6PrefixLen": 0,
+        "DNSNames": null
+      }
+    }
+  }
+}
+
+$ docker exec cintara-web-ui ls -la / 2>/dev/null || echo 'Cannot access container filesystem'
+total 84
+drwxr-xr-x    1 root     root          4096 Sep 18 05:22 .
+drwxr-xr-x    1 root     root          4096 Sep 18 05:22 ..
+-rwxr-xr-x    1 root     root             0 Sep 18 05:22 .dockerenv
+drwxr-xr-x    2 root     root          4096 Jul 15 10:42 bin
+drwxr-xr-x    5 root     root           340 Sep 21 15:23 dev
+drwxr-xr-x    1 root     root          4096 Aug 13 18:52 docker-entrypoint.d
+-rwxr-xr-x    1 root     root          1620 Aug 13 18:51 docker-entrypoint.sh
+drwxr-xr-x    1 root     root          4096 Sep 18 05:22 etc
+drwxr-xr-x    2 root     root          4096 Jul 15 10:42 home
+drwxr-xr-x    1 root     root          4096 Jul 15 10:42 lib
+drwxr-xr-x    5 root     root          4096 Jul 15 10:42 media
+drwxr-xr-x    2 root     root          4096 Jul 15 10:42 mnt
+drwxr-xr-x    2 root     root          4096 Jul 15 10:42 opt
+dr-xr-xr-x  214 root     root             0 Sep 21 15:23 proc
+drwx------    2 root     root          4096 Jul 15 10:42 root
+drwxr-xr-x    1 root     root          4096 Sep 18 05:23 run
+drwxr-xr-x    2 root     root          4096 Jul 15 10:42 sbin
+drwxr-xr-x    2 root     root          4096 Jul 15 10:42 srv
+dr-xr-xr-x   13 root     root             0 Sep 21 15:23 sys
+drwxrwxrwt    2 root     root          4096 Jul 15 10:42 tmp
+drwxr-xr-x    1 root     root          4096 Jul 15 10:42 usr
+drwxr-xr-x    1 root     root          4096 Jul 15 10:42 var
+
+$ docker exec cintara-web-ui ls -la /home 2>/dev/null || echo 'No /home in container'
+total 8
+drwxr-xr-x    2 root     root          4096 Jul 15 10:42 .
+drwxr-xr-x    1 root     root          4096 Sep 18 05:22 ..
+
+$ docker exec cintara-web-ui ls -la /data 2>/dev/null || echo 'No /data in container'
+No /data in container
+
+$ docker exec cintara-web-ui ls -la /.cintara 2>/dev/null || echo 'No .cintara in container'
+No .cintara in container
+
+$ docker exec cintara-web-ui find / -name '*.toml' 2>/dev/null | head -5 || echo 'No .toml files found'
+
+$ docker exec cintara-web-ui find / -name '*.db' 2>/dev/null | head -5 || echo 'No .db files found'
+
+--- Analyzing container: cintara-ai-bridge ---
+$ docker inspect cintara-ai-bridge | jq '.[] | {Image, Mounts, NetworkSettings}'
+{
+  "Image": "sha256:acd2a6b0231d343905ff95af9117eb4c4ca95f8df31948866ca59c85a8b7dd27",
+  "Mounts": [],
+  "NetworkSettings": {
+    "Bridge": "",
+    "SandboxID": "35f8a526dbb509c219da01dff698029823429043df6bfefdd7e577868910d709",
+    "SandboxKey": "/run/snap.docker/netns/default",
+    "Ports": {},
+    "HairpinMode": false,
+    "LinkLocalIPv6Address": "",
+    "LinkLocalIPv6PrefixLen": 0,
+    "SecondaryIPAddresses": null,
+    "SecondaryIPv6Addresses": null,
+    "EndpointID": "",
+    "Gateway": "",
+    "GlobalIPv6Address": "",
+    "GlobalIPv6PrefixLen": 0,
+    "IPAddress": "",
+    "IPPrefixLen": 0,
+    "IPv6Gateway": "",
+    "MacAddress": "",
+    "Networks": {
+      "host": {
+        "IPAMConfig": null,
+        "Links": null,
+        "Aliases": null,
+        "MacAddress": "",
+        "DriverOpts": null,
+        "GwPriority": 0,
+        "NetworkID": "240c96d58bc5de80e8aac14a4861e6f38041732b7919d242e55712d2a139eba3",
+        "EndpointID": "ebde4a68ef016d1da298f5c729a4be8dacdc2cbbcc5af36864ac7c3ccaff165f",
+        "Gateway": "",
+        "IPAddress": "",
+        "IPPrefixLen": 0,
+        "IPv6Gateway": "",
+        "GlobalIPv6Address": "",
+        "GlobalIPv6PrefixLen": 0,
+        "DNSNames": null
+      }
+    }
+  }
+}
+
+$ docker exec cintara-ai-bridge ls -la / 2>/dev/null || echo 'Cannot access container filesystem'
+total 68
+drwxr-xr-x   1 root   root   4096 Sep 18 05:22 .
+drwxr-xr-x   1 root   root   4096 Sep 18 05:22 ..
+-rwxr-xr-x   1 root   root      0 Sep 18 05:22 .dockerenv
+drwxr-xr-x   1 bridge bridge 4096 Sep 18 05:23 app
+lrwxrwxrwx   1 root   root      7 Aug 24 16:20 bin -> usr/bin
+drwxr-xr-x   2 root   root   4096 Aug 24 16:20 boot
+drwxr-xr-x   5 root   root    340 Sep 21 15:23 dev
+drwxr-xr-x   1 root   root   4096 Sep 18 05:22 etc
+drwxr-xr-x   1 root   root   4096 Sep 17 23:57 home
+lrwxrwxrwx   1 root   root      7 Aug 24 16:20 lib -> usr/lib
+lrwxrwxrwx   1 root   root      9 Aug 24 16:20 lib64 -> usr/lib64
+drwxr-xr-x   2 root   root   4096 Sep  8 00:00 media
+drwxr-xr-x   2 root   root   4096 Sep  8 00:00 mnt
+drwxr-xr-x   2 root   root   4096 Sep  8 00:00 opt
+dr-xr-xr-x 214 root   root      0 Sep 21 15:23 proc
+drwx------   1 root   root   4096 Sep  8 21:42 root
+drwxr-xr-x   3 root   root   4096 Sep  8 00:00 run
+lrwxrwxrwx   1 root   root      8 Aug 24 16:20 sbin -> usr/sbin
+drwxr-xr-x   2 root   root   4096 Sep  8 00:00 srv
+dr-xr-xr-x  13 root   root      0 Sep 21 15:23 sys
+drwxrwxrwt   1 root   root   4096 Sep 17 23:57 tmp
+drwxr-xr-x   1 root   root   4096 Sep  8 00:00 usr
+drwxr-xr-x   1 root   root   4096 Sep  8 00:00 var
+
+$ docker exec cintara-ai-bridge ls -la /home 2>/dev/null || echo 'No /home in container'
+total 12
+drwxr-xr-x 1 root   root   4096 Sep 17 23:57 .
+drwxr-xr-x 1 root   root   4096 Sep 18 05:22 ..
+drwx------ 2 bridge bridge 4096 Sep 17 23:57 bridge
+
+$ docker exec cintara-ai-bridge ls -la /data 2>/dev/null || echo 'No /data in container'
+No /data in container
+
+$ docker exec cintara-ai-bridge ls -la /.cintara 2>/dev/null || echo 'No .cintara in container'
+No .cintara in container
+
+$ docker exec cintara-ai-bridge find / -name '*.toml' 2>/dev/null | head -5 || echo 'No .toml files found'
+
+$ docker exec cintara-ai-bridge find / -name '*.db' 2>/dev/null | head -5 || echo 'No .db files found'
+
+--- Analyzing container: cintara-llm ---
+$ docker inspect cintara-llm | jq '.[] | {Image, Mounts, NetworkSettings}'
+{
+  "Image": "sha256:53959b0f0f8b30efb8df25ef962be25948be60fbe7a406c31030242be3131be2",
+  "Mounts": [
+    {
+      "Type": "bind",
+      "Source": "/home/ubuntu/cintara-node-llm-bridge/models",
+      "Destination": "/models",
+      "Mode": "ro",
+      "RW": false,
+      "Propagation": "rprivate"
+    }
+  ],
+  "NetworkSettings": {
+    "Bridge": "",
+    "SandboxID": "d1f2afdc74a670f4d5c2e73a3136834db5d929ff9668452126ac0ea5e9ea46a9",
+    "SandboxKey": "/run/snap.docker/netns/d1f2afdc74a6",
+    "Ports": {
+      "8000/tcp": [
+        {
+          "HostIp": "0.0.0.0",
+          "HostPort": "8000"
+        },
+        {
+          "HostIp": "::",
+          "HostPort": "8000"
+        }
+      ]
+    },
+    "HairpinMode": false,
+    "LinkLocalIPv6Address": "",
+    "LinkLocalIPv6PrefixLen": 0,
+    "SecondaryIPAddresses": null,
+    "SecondaryIPv6Addresses": null,
+    "EndpointID": "",
+    "Gateway": "",
+    "GlobalIPv6Address": "",
+    "GlobalIPv6PrefixLen": 0,
+    "IPAddress": "",
+    "IPPrefixLen": 0,
+    "IPv6Gateway": "",
+    "MacAddress": "",
+    "Networks": {
+      "cintara-node-llm-bridge_default": {
+        "IPAMConfig": null,
+        "Links": null,
+        "Aliases": [
+          "cintara-llm",
+          "llama"
+        ],
+        "MacAddress": "7a:c3:98:e5:45:c8",
+        "DriverOpts": null,
+        "GwPriority": 0,
+        "NetworkID": "12e7031d2ca216f2e41c78c4c7dda2c1ecdba38979187b558fe706eec501ef79",
+        "EndpointID": "724830880c89ea141629d6fdb24c470bfc1db6385bd289b944c25f78cae710e2",
+        "Gateway": "172.18.0.1",
+        "IPAddress": "172.18.0.2",
+        "IPPrefixLen": 16,
+        "IPv6Gateway": "",
+        "GlobalIPv6Address": "",
+        "GlobalIPv6PrefixLen": 0,
+        "DNSNames": [
+          "cintara-llm",
+          "llama",
+          "01345546d32d"
+        ]
+      }
+    }
+  }
+}
+
+$ docker exec cintara-llm ls -la / 2>/dev/null || echo 'Cannot access container filesystem'
+total 64
+drwxr-xr-x   1 root root 4096 Sep 18 05:22 .
+drwxr-xr-x   1 root root 4096 Sep 18 05:22 ..
+-rwxr-xr-x   1 root root    0 Sep 18 05:22 .dockerenv
+drwxr-xr-x   1 root root 4096 May 10 04:24 app
+lrwxrwxrwx   1 root root    7 Apr 15 14:03 bin -> usr/bin
+drwxr-xr-x   2 root root 4096 Apr 18  2022 boot
+drwxr-xr-x   5 root root  340 Sep 21 15:23 dev
+drwxr-xr-x   1 root root 4096 Sep 18 05:22 etc
+drwxr-xr-x   2 root root 4096 Apr 18  2022 home
+lrwxrwxrwx   1 root root    7 Apr 15 14:03 lib -> usr/lib
+lrwxrwxrwx   1 root root    9 Apr 15 14:03 lib32 -> usr/lib32
+lrwxrwxrwx   1 root root    9 Apr 15 14:03 lib64 -> usr/lib64
+lrwxrwxrwx   1 root root   10 Apr 15 14:03 libx32 -> usr/libx32
+drwxr-xr-x   2 root root 4096 Apr 15 14:03 media
+drwxr-xr-x   2 root root 4096 Apr 15 14:03 mnt
+drwxr-xr-x   2 root root 4096 Sep 16 00:23 models
+drwxr-xr-x   2 root root 4096 Apr 15 14:03 opt
+dr-xr-xr-x 211 root root    0 Sep 21 15:23 proc
+drwx------   2 root root 4096 Apr 15 14:10 root
+drwxr-xr-x   5 root root 4096 Apr 15 14:10 run
+lrwxrwxrwx   1 root root    8 Apr 15 14:03 sbin -> usr/sbin
+drwxr-xr-x   2 root root 4096 Apr 15 14:03 srv
+dr-xr-xr-x  13 root root    0 Sep 21 16:28 sys
+drwxrwxrwt   2 root root 4096 Apr 15 14:10 tmp
+drwxr-xr-x   1 root root 4096 Apr 15 14:03 usr
+drwxr-xr-x   1 root root 4096 Apr 15 14:10 var
+
+$ docker exec cintara-llm ls -la /home 2>/dev/null || echo 'No /home in container'
+total 8
+drwxr-xr-x 2 root root 4096 Apr 18  2022 .
+drwxr-xr-x 1 root root 4096 Sep 18 05:22 ..
+
+$ docker exec cintara-llm ls -la /data 2>/dev/null || echo 'No /data in container'
+No /data in container
+
+$ docker exec cintara-llm ls -la /.cintara 2>/dev/null || echo 'No .cintara in container'
+No .cintara in container
+
+$ docker exec cintara-llm find / -name '*.toml' 2>/dev/null | head -5 || echo 'No .toml files found'
+
+$ docker exec cintara-llm find / -name '*.db' 2>/dev/null | head -5 || echo 'No .db files found'
+
+==================== 9. ENVIRONMENT VARIABLES ====================
+
+$ env | grep -E '(CINTARA|CHAIN|NODE|DB|POSTGRES)' || echo 'No relevant environment variables found'
+DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/0/bus
+
+Found .env file:
+$ cat /home/ubuntu/cintara-node-llm-bridge/.env
+PUBLIC_IP=54.204.68.183
+
+CHAIN_ID=cintara_11001-1
+MONIKER=cintara-node-ec2
+RPC_PORT=26657
+P2P_PORT=26656
+TARGETPLATFORM=linux/amd64
+RUNTIME_PLATFORM=linux/amd64
+
+LLAMA_REPO=ghcr.io/ggerganov/llama.cpp:server
+LLAMA_DIGEST=sha256:42d562e394e22fc1b05d6f0ee9179b276b80a115217c8d668dc8c2fc5b1302ac
+
+MODEL_FILE=tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf
+CTX_SIZE=2048
+LLM_THREADS=4  # Default to 4 threads (adjust based on your CPU count)
+BRIDGE_LOG_LEVEL=info
+
+# Cintara Node Connection
+CINTARA_NODE_URL=http://localhost:26657
+
+# Resource optimization notes:
+# - LLM_THREADS: Set to your CPU count or less (default: 4)
+# - CTX_SIZE: Reduce if running out of memory (min: 512, default: 2048)
+# - For systems with <8GB RAM, reduce CTX_SIZE to 1024
+
+# Keyring Security Settings
+KEYRING_PASSWORD=<GENERATE_SECURE_PASSWORD>
+# Auto-generate secure password: openssl rand -base64 12
+
+==================== 10. FILESYSTEM SEARCH ====================
+
+Searching filesystem for Cintara-related files...
+$ find /home/ubuntu 2>/dev/null | grep -i cintara | head -20
+/home/ubuntu/data/.tmp-cintarad
+/home/ubuntu/data/.tmp-cintarad/config
+/home/ubuntu/data/.tmp-cintarad/config/client.toml
+/home/ubuntu/data/.tmp-cintarad/config/app.toml
+/home/ubuntu/data/.tmp-cintarad/config/config.toml
+/home/ubuntu/data/.tmp-cintarad/data
+/home/ubuntu/data/.tmp-cintarad/data/application.db
+/home/ubuntu/data/.tmp-cintarad/data/application.db/LOCK
+/home/ubuntu/data/.tmp-cintarad/data/application.db/CURRENT
+/home/ubuntu/data/.tmp-cintarad/data/application.db/MANIFEST-000000
+/home/ubuntu/data/.tmp-cintarad/data/application.db/000001.log
+/home/ubuntu/data/.tmp-cintarad/data/application.db/LOG
+/home/ubuntu/.cintarad
+/home/ubuntu/.cintarad/config
+/home/ubuntu/.cintarad/config/client.toml
+/home/ubuntu/cintara-node-llm-bridge
+/home/ubuntu/cintara-node-llm-bridge/.git
+/home/ubuntu/cintara-node-llm-bridge/.git/config
+/home/ubuntu/cintara-node-llm-bridge/.git/HEAD
+/home/ubuntu/cintara-node-llm-bridge/.git/FETCH_HEAD
+
+$ find /opt 2>/dev/null | grep -i cintara | head -10
+
+$ find /var 2>/dev/null | grep -i cintara | head -10
+
+==================== 11. PORT ANALYSIS ====================
+
+Checking what services are running on common blockchain ports...
+Port 26657: tcp   LISTEN 0      4096                    *:26657            *:*    users:(("cintarad",pid=6664,fd=107))
+Port 1317: tcp   LISTEN 0      4096                    *:1317             *:*    users:(("cintarad",pid=6664,fd=123))
+Port 9090: tcp   LISTEN 0      4096                    *:9090             *:*    users:(("cintarad",pid=6664,fd=120))
+Port 8080: tcp   LISTEN 0      2048              0.0.0.0:8080       0.0.0.0:*    users:(("uvicorn",pid=1353,fd=11))
+Port 3000: tcp   LISTEN 0      511               0.0.0.0:3000       0.0.0.0:*    users:(("nginx",pid=1454,fd=6),("nginx",pid=1346,fd=6))
+Port 5432: Not in use
+Port 8000: tcp   LISTEN 0      4096              0.0.0.0:8000       0.0.0.0:*    users:(("docker-proxy",pid=1424,fd=7))
+==================== 12. SAMPLE TRANSACTION DATA ====================
+
+Attempting to retrieve sample transaction data...
+No sample transactions found via tx_search
+==================== 13. TAXBIT SERVICE TEST ====================
+
+Testing current TaxBit service availability...
+$ curl -s http://localhost:8080/health || echo 'TaxBit service not responding'
+{"status":"ok","components":{"llm_server":"ok","blockchain_node":"synced"},"timestamp":"2025-09-21T16:28:09.822489"}
+$ curl -s http://localhost:8080/taxbit/tokens || echo 'TaxBit tokens endpoint not responding'
+{"detail":"Not Found"}
+==================== 14. SUMMARY AND RECOMMENDATIONS ====================
+
+Analysis complete. Key findings:
+✅ Cintara node is running and synced
+✅ TaxBit bridge service is responding

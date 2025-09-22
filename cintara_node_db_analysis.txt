@@ -1,0 +1,188 @@
+CINTARA NODE DATABASE ANALYSIS
+==================================================
+=== CINTARA NODE STATUS ===
+✅ Cintarad process is running:
+  root        2502 37.1  3.6 2564100 293924 pts/1  Sl+  02:38   0:18 cintarad start --home /data/.tmp-cintarad/
+✅ RPC endpoint responding
+  Latest block: 1472365
+  Network: cintara_11001-1
+  TX Index: on
+
+=== DATABASE LOCATION DISCOVERY ===
+Searching in /home/ubuntu/data...
+  Found: /home/ubuntu/data/.tmp-cintarad/data/application.db (20K)
+Searching in /home/ubuntu/.cintarad...
+Searching in /root/.cintarad...
+Searching in /data...
+  Found: /data/.tmp-cintarad/data/application.db (28K)
+  Found: /data/.tmp-cintarad/data/tx_index.db (1.6G)
+  Found: /data/.tmp-cintarad/data/snapshots/metadata.db (44K)
+  Found: /data/.tmp-cintarad/data/blockstore.db (1.9G)
+  Found: /data/.tmp-cintarad/data/memiavl.db (34M)
+  Found: /data/.tmp-cintarad/data/state.db (1.2G)
+  Found: /data/.tmp-cintarad/data/evidence.db (28K)
+  Found: /data/.tmp-cintarad/data/evmindexer.db (32K)
+
+=== POSTGRESQL CHECK ===
+❌ PostgreSQL not installed
+
+=== NODE CONFIGURATION ANALYSIS ===
+
+Analyzing: /home/ubuntu/data/.tmp-cintarad/config/app.toml
+  INDEXER configuration:
+    Line 310: enable-indexer = true
+  DATABASE configuration:
+    Line 73: # AppDBBackend defines the database backend type to use for the application and snapshots DBs.
+    Line 76: app-db-backend = ""
+  EVM configuration:
+    Line 242: [evm]
+    Line 256: [json-rpc]
+    Line 267: # API defines a list of JSON-RPC namespaces that should be enabled
+    Line 295: # HTTPTimeout is the read/write timeout of http json-rpc server.
+    Line 298: # HTTPIdleTimeout is the idle timeout of http json-rpc server.
+    ... and 1 more lines
+  API configuration:
+    Line 127: [api]
+    Line 130: enable = false
+    Line 136: address = "tcp://localhost:1317"
+    Line 160: enable = false
+    Line 163: address = "localhost:9090"
+    ... and 9 more lines
+
+Analyzing: /home/ubuntu/data/.tmp-cintarad/config/config.toml
+  INDEXER configuration:
+    Line 472: indexer = "kv"
+  DATABASE configuration:
+    Line 24: # Database backend: goleveldb | cleveldb | boltdb | rocksdb | badgerdb
+    Line 45: # Database directory
+  POSTGRESQL configuration:
+    Line 470: #   3) "psql" - the indexer services backed by PostgreSQL.
+    Line 471: # When "kv" or "psql" is chosen "tx.height" and "tx.hash" will always be indexed.
+    Line 474: # The PostgreSQL connection configuration, the connection format:
+    Line 475: #   postgresql://<user>:<password>@<host>:<port>/<db>?<opts>
+    Line 476: psql-conn = ""
+  EVM configuration:
+    Line 173: # enforced for a JSON-RPC batch request.
+  API configuration:
+    Line 211: external_address = ""
+    Line 364: enable = false
+
+Analyzing: /data/.tmp-cintarad/config/app.toml
+  INDEXER configuration:
+    Line 310: enable-indexer = true
+  DATABASE configuration:
+    Line 73: # AppDBBackend defines the database backend type to use for the application and snapshots DBs.
+    Line 76: app-db-backend = ""
+  EVM configuration:
+    Line 242: [evm]
+    Line 256: [json-rpc]
+    Line 267: # API defines a list of JSON-RPC namespaces that should be enabled
+    Line 295: # HTTPTimeout is the read/write timeout of http json-rpc server.
+    Line 298: # HTTPIdleTimeout is the idle timeout of http json-rpc server.
+    ... and 1 more lines
+  API configuration:
+    Line 127: [api]
+    Line 130: enable = true
+    Line 136: address = "tcp://0.0.0.0:1317"
+    Line 160: enable = true
+    Line 163: address = "0.0.0.0:9090"
+    ... and 9 more lines
+
+Analyzing: /data/.tmp-cintarad/config/config.toml
+  INDEXER configuration:
+    Line 472: indexer = "kv"
+  DATABASE configuration:
+    Line 24: # Database backend: goleveldb | cleveldb | boltdb | rocksdb | badgerdb
+    Line 45: # Database directory
+  POSTGRESQL configuration:
+    Line 470: #   3) "psql" - the indexer services backed by PostgreSQL.
+    Line 471: # When "kv" or "psql" is chosen "tx.height" and "tx.hash" will always be indexed.
+    Line 474: # The PostgreSQL connection configuration, the connection format:
+    Line 475: #   postgresql://<user>:<password>@<host>:<port>/<db>?<opts>
+    Line 476: psql-conn = ""
+  EVM configuration:
+    Line 173: # enforced for a JSON-RPC batch request.
+  API configuration:
+    Line 211: external_address = ""
+    Line 364: enable = false
+
+Analyzing: /root/go/pkg/mod/github.com/cometbft/cometbft-db@v0.7.0/.changelog/config.toml
+
+Analyzing: /root/go/pkg/mod/github.com/cometbft/cometbft@v0.38.0-rc3/.changelog/config.toml
+
+Analyzing: /root/.cintarad/config/app.toml
+  INDEXER configuration:
+    Line 310: enable-indexer = false
+  DATABASE configuration:
+    Line 73: # AppDBBackend defines the database backend type to use for the application and snapshots DBs.
+    Line 76: app-db-backend = ""
+  EVM configuration:
+    Line 242: [evm]
+    Line 256: [json-rpc]
+    Line 267: # API defines a list of JSON-RPC namespaces that should be enabled
+    Line 295: # HTTPTimeout is the read/write timeout of http json-rpc server.
+    Line 298: # HTTPIdleTimeout is the idle timeout of http json-rpc server.
+    ... and 1 more lines
+  API configuration:
+    Line 127: [api]
+    Line 130: enable = false
+    Line 136: address = "tcp://localhost:1317"
+    Line 160: enable = false
+    Line 163: address = "localhost:9090"
+    ... and 9 more lines
+
+Analyzing: /root/.cintarad/config/config.toml
+  INDEXER configuration:
+    Line 472: indexer = "kv"
+  DATABASE configuration:
+    Line 24: # Database backend: goleveldb | cleveldb | boltdb | rocksdb | badgerdb
+    Line 45: # Database directory
+  POSTGRESQL configuration:
+    Line 470: #   3) "psql" - the indexer services backed by PostgreSQL.
+    Line 471: # When "kv" or "psql" is chosen "tx.height" and "tx.hash" will always be indexed.
+    Line 474: # The PostgreSQL connection configuration, the connection format:
+    Line 475: #   postgresql://<user>:<password>@<host>:<port>/<db>?<opts>
+    Line 476: psql-conn = ""
+  EVM configuration:
+    Line 173: # enforced for a JSON-RPC batch request.
+  API configuration:
+    Line 211: external_address = ""
+    Line 364: enable = false
+
+=== TRANSACTION INDEXER STATUS ===
+✅ Transaction indexer responding, 108 transactions found
+  Sample transaction: 834AC4A9F6FA1E9B...
+  Block height: 1005189
+✅ EVM JSON-RPC endpoint responding
+
+=== PYTHON DATABASE LIBRARIES ===
+✅ plyvel - LevelDB access
+✅ psycopg2 - PostgreSQL access
+✅ sqlite3 - SQLite access (built-in)
+✅ requests - HTTP requests (for RPC)
+
+=== RECOMMENDATIONS ===
+✅ LevelDB access possible with plyvel
+   Next step: Install plyvel and explore database structure
+   Command: pip3 install plyvel
+✅ PostgreSQL access available
+   Check if node is configured to use PostgreSQL indexer
+
+📋 IMPLEMENTATION OPTIONS:
+1. Enable EVM indexer and restart node (requires downtime)
+2. Set up PostgreSQL indexer for better transaction querying
+3. Use LevelDB direct access (requires plyvel installation)
+4. Continue with enhanced RPC parsing (current approach)
+5. Integrate with testnet.cintara.io portal logic
+
+Analysis complete. Found 9 database location(s).
+Database locations:
+  - /home/ubuntu/data/.tmp-cintarad/data/application.db
+  - /data/.tmp-cintarad/data/application.db
+  - /data/.tmp-cintarad/data/tx_index.db
+  - /data/.tmp-cintarad/data/snapshots/metadata.db
+  - /data/.tmp-cintarad/data/blockstore.db
+  - /data/.tmp-cintarad/data/memiavl.db
+  - /data/.tmp-cintarad/data/state.db
+  - /data/.tmp-cintarad/data/evidence.db
+  - /data/.tmp-cintarad/data/evmindexer.db

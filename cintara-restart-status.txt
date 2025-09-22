@@ -1,0 +1,59 @@
+root@ip-172-31-32-239:/home/ubuntu/cintara-node-llm-bridge#   curl http://localhost:26657/status | jq '.result.node_info.other'
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+100  1103  100  1103    0     0   725k      0 --:--:-- --:--:-- --:--:-- 1077k
+{
+  "tx_index": "on",
+  "rpc_address": "tcp://0.0.0.0:26657"
+}
+root@ip-172-31-32-239:/home/ubuntu/data#   nohup cintarad start --home /data/.tmp-cintarad/ > cintara.log 2>&1 &
+[1] 5960
+root@ip-172-31-32-239:/home/ubuntu/data#   curl -X POST http://localhost:26657/configure_indexer -d '{"enable": true}'
+404 page not found
+[1]+  Exit 1                  nohup cintarad start --home /data/.tmp-cintarad/ > cintara.log 2>&1
+root@ip-172-31-32-239:/home/ubuntu/data#   curl http://localhost:26657/status | jq '.'
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+100  1103  100  1103    0     0   713k      0 --:--:-- --:--:-- --:--:-- 1077k
+{
+  "jsonrpc": "2.0",
+  "id": -1,
+  "result": {
+    "node_info": {
+      "protocol_version": {
+        "p2p": "8",
+        "block": "11",
+        "app": "0"
+      },
+      "id": "8310ffe4898c6f0487d3b3d96a294f469166d5db",
+      "listen_addr": "tcp://0.0.0.0:26656",
+      "network": "cintara_11001-1",
+      "version": "0.38.15",
+      "channels": "40202122233038606100",
+      "moniker": "scrt-netwrk-test",
+      "other": {
+        "tx_index": "on",
+        "rpc_address": "tcp://0.0.0.0:26657"
+      }
+    },
+    "sync_info": {
+      "latest_block_hash": "826E81D8CAA5639026D57AFF6CC9BDBD1571D3E5EFFD1805C1598644D6BE1326",
+      "latest_app_hash": "818CE10117FA571B50F6141EC44F4DD2B712211305C057C440B687B23862E7E9",
+      "latest_block_height": "1467554",
+      "latest_block_time": "2025-09-21T18:36:35.117515423Z",
+      "earliest_block_hash": "3C4B0161CA197D990FF5B858F29A24ADF3DFA3A3938FDE594F307489D4701DE7",
+      "earliest_app_hash": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "earliest_block_height": "1",
+      "earliest_block_time": "2025-06-11T10:44:56.268687316Z",
+      "catching_up": false
+    },
+    "validator_info": {
+      "address": "C829E18D3B48631415481393FE1A904D6EED1B15",
+      "pub_key": {
+        "type": "tendermint/PubKeyEd25519",
+        "value": "dAoPXHns1Rr0Le6G/ZKbWt0D8VP3XIArWw9JWgNW8C8="
+      },
+      "voting_power": "0"
+    }
+  }
+}
