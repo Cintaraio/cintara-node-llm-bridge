@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎯 Cintara TaxBit Export - Enhanced LevelDB Integration</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f8f9fa;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 12px;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 2.2em;
+            font-weight: 300;
+        }
+        .header p {
+            margin: 10px 0 0 0;
+            opacity: 0.9;
+        }
+        .form-container {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+        }
+        input[type="text"], input[type="datetime-local"], select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e1e5e9;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s ease;
+        }
+        input[type="text"]:focus, input[type="datetime-local"]:focus, select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        .row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        .btn {
+            background: #667eea;
+            color: white;
+            padding: 14px 28px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            transition: background 0.3s ease;
+            margin-right: 10px;
+        }
+        .btn:hover {
+            background: #5a6fd8;
+        }
+        .btn.secondary {
+            background: #6c757d;
+        }
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .results {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            margin-top: 20px;
+            overflow: hidden;
+        }
+        .results-header {
+            background: #f8f9fa;
+            padding: 20px;
+            border-bottom: 1px solid #e9ecef;
+        }
+        .results-body {
+            padding: 20px;
+        }
+        .transaction {
+            border-bottom: 1px solid #e9ecef;
+            padding: 15px 0;
+        }
+        .transaction:last-child {
+            border-bottom: none;
+        }
+        .tx-hash {
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 14px;
+            color: #667eea;
+            word-break: break-all;
+        }
+        .tx-amount {
+            font-weight: 600;
+            color: #28a745;
+        }
+        .tx-addresses {
+            display: grid;
+            grid-template-columns: 1fr auto 1fr;
+            gap: 10px;
+            align-items: center;
+            margin: 8px 0;
+        }
+        .address {
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 12px;
+            color: #6c757d;
+            word-break: break-all;
+        }
+        .arrow {
+            text-align: center;
+            color: #667eea;
+            font-weight: bold;
+        }
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #667eea;
+        }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        .success {
+            background: #d4edda;
+            color: #155724;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        .info-card {
+            background: #e3f2fd;
+            border-left: 4px solid #2196f3;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .stat-item {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #667eea;
+        }
+        .stat-label {
+            color: #6c757d;
+            font-size: 14px;
+        }
+        @media (max-width: 768px) {
+            .row {
+                grid-template-columns: 1fr;
+            }
+            .tx-addresses {
+                grid-template-columns: 1fr;
+                text-align: center;
+            }
+            .arrow {
+                margin: 5px 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🎯 Cintara TaxBit Export</h1>
+        <p>Enhanced with Production LevelDB Integration - Real Transaction Data from 1.6GB Database</p>
+    </div>
+
+    <div class="form-container">
+        <form id="taxbitForm">
+            <div class="form-group">
+                <label for="address">Wallet Address</label>
+                <input type="text" id="address" placeholder="Enter Cintara address (e.g., 0x400d4a7c9df0b8f438e819b91f7d76b4ed27ce1c)" required>
+                <small style="color: #6c757d;">Supports both Cosmos (cintara1...) and EVM (0x...) addresses</small>
+            </div>
+
+            <div class="row">
+                <div class="form-group">
+                    <label for="startDate">Start Date (Optional)</label>
+                    <input type="datetime-local" id="startDate">
+                </div>
+                <div class="form-group">
+                    <label for="endDate">End Date (Optional)</label>
+                    <input type="datetime-local" id="endDate">
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="form-group">
+                    <label for="limit">Preview Limit</label>
+                    <select id="limit">
+                        <option value="10">10 transactions</option>
+                        <option value="25">25 transactions</option>
+                        <option value="50">50 transactions</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>&nbsp;</label>
+                    <div>
+                        <button type="submit" class="btn">🔍 Preview Transactions</button>
+                        <button type="button" class="btn secondary" onclick="exportCSV()">📊 Export CSV</button>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <div class="info-card">
+        <strong>🚀 Production Features:</strong>
+        This interface uses enhanced LevelDB integration to access real transaction data from the 1.6GB Cintara database.
+        Date filtering, multiple address formats, and optimized performance for web UI.
+    </div>
+
+    <div id="results" class="results" style="display: none;">
+        <div class="results-header">
+            <h3>Transaction Results</h3>
+            <div id="searchSummary"></div>
+        </div>
+        <div class="results-body">
+            <div id="transactionList"></div>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('taxbitForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            await previewTransactions();
+        });
+
+        // Set default test address
+        document.getElementById('address').value = '0x400d4a7c9df0b8f438e819b91f7d76b4ed27ce1c';
+
+        async function previewTransactions() {
+            const address = document.getElementById('address').value;
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+            const limit = document.getElementById('limit').value;
+
+            if (!address) {
+                showError('Please enter a wallet address');
+                return;
+            }
+
+            showLoading();
+
+            try {
+                const params = new URLSearchParams({
+                    limit: limit
+                });
+
+                if (startDate) {
+                    params.append('start_date', new Date(startDate).toISOString());
+                }
+                if (endDate) {
+                    params.append('end_date', new Date(endDate).toISOString());
+                }
+
+                const response = await fetch(`/taxbit/preview/${encodeURIComponent(address)}?${params}`);
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.detail || 'Preview failed');
+                }
+
+                displayResults(data);
+
+            } catch (error) {
+                showError('Preview failed: ' + error.message);
+            }
+        }
+
+        async function exportCSV() {
+            const address = document.getElementById('address').value;
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+
+            if (!address) {
+                showError('Please enter a wallet address');
+                return;
+            }
+
+            try {
+                const params = new URLSearchParams();
+                if (startDate) {
+                    params.append('start_date', new Date(startDate).toISOString());
+                }
+                if (endDate) {
+                    params.append('end_date', new Date(endDate).toISOString());
+                }
+
+                const url = `/taxbit/export/${encodeURIComponent(address)}${params.toString() ? '?' + params.toString() : ''}`;
+
+                // Create temporary link for download
+                const link = document.createElement('a');
+                link.href = url;
+                link.click();
+
+                showSuccess('CSV export started. Download should begin shortly.');
+
+            } catch (error) {
+                showError('Export failed: ' + error.message);
+            }
+        }
+
+        function displayResults(data) {
+            const resultsDiv = document.getElementById('results');
+            const summaryDiv = document.getElementById('searchSummary');
+            const listDiv = document.getElementById('transactionList');
+
+            // Display search summary
+            const summary = data.search_summary;
+            summaryDiv.innerHTML = `
+                <div class="stats">
+                    <div class="stat-item">
+                        <div class="stat-value">${summary.total_found}</div>
+                        <div class="stat-label">Total Found</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value">${summary.preview_count}</div>
+                        <div class="stat-label">Previewing</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value">${summary.successful_conversions}</div>
+                        <div class="stat-label">Converted</div>
+                    </div>
+                </div>
+                <p><strong>Database Status:</strong> ${summary.database_performance}</p>
+                ${data.date_range.start_date ? `<p><strong>Date Range:</strong> ${data.date_range.parsed_start} to ${data.date_range.parsed_end}</p>` : ''}
+            `;
+
+            // Display transactions
+            if (data.transactions && data.transactions.length > 0) {
+                listDiv.innerHTML = data.transactions.map(tx => `
+                    <div class="transaction">
+                        <div class="tx-hash">🔗 ${tx.txid}</div>
+                        <div class="tx-addresses">
+                            <div class="address">From: ${tx.from_wallet_address || 'N/A'}</div>
+                            <div class="arrow">→</div>
+                            <div class="address">To: ${tx.to_wallet_address || 'N/A'}</div>
+                        </div>
+                        <div style="margin: 8px 0;">
+                            <span class="tx-amount">${tx.amount_display || `${tx.in_amount || tx.out_amount || 0} ${tx.in_currency || tx.out_currency || 'CINT'}`}</span>
+                            <span style="margin-left: 15px; color: #6c757d;">${tx.category}</span>
+                            <span style="margin-left: 15px; font-size: 12px; color: #6c757d;">${tx.database_source}</span>
+                        </div>
+                        <div style="font-size: 12px; color: #6c757d;">
+                            ${tx.timestamp} • Type: ${tx.transaction_type}
+                        </div>
+                    </div>
+                `).join('');
+            } else {
+                listDiv.innerHTML = '<p style="text-align: center; color: #6c757d; padding: 40px;">No transactions found for this address.</p>';
+            }
+
+            // Show conversion errors if any
+            if (data.conversion_errors && data.conversion_errors.length > 0) {
+                listDiv.innerHTML += `
+                    <div class="error">
+                        <strong>Conversion Errors:</strong>
+                        <ul>
+                            ${data.conversion_errors.map(error => `<li>${error}</li>`).join('')}
+                        </ul>
+                    </div>
+                `;
+            }
+
+            resultsDiv.style.display = 'block';
+        }
+
+        function showLoading() {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = '<div class="loading">🔍 Searching 1.6GB LevelDB database for transactions...</div>';
+            resultsDiv.style.display = 'block';
+        }
+
+        function showError(message) {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = `<div class="error">❌ ${message}</div>`;
+            resultsDiv.style.display = 'block';
+        }
+
+        function showSuccess(message) {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = `<div class="success">✅ ${message}</div>`;
+            resultsDiv.style.display = 'block';
+        }
+
+        // Auto-fill current date range for testing
+        function setDefaultDates() {
+            const now = new Date();
+            const oneMonthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+            document.getElementById('startDate').value = oneMonthAgo.toISOString().slice(0, 16);
+            document.getElementById('endDate').value = now.toISOString().slice(0, 16);
+        }
+
+        // Optional: Uncomment to auto-fill dates
+        // setDefaultDates();
+    </script>
+</body>
+</html>

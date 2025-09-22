@@ -1,0 +1,323 @@
+root@ip-172-31-32-239:/home/ubuntu/cintara-node-llm-bridge#   python3 test_updated_service.py
+CINTARA TAXBIT SERVICE TEST SUITE
+==================================================
+
+=== TESTING DATABASE CONNECTIONS ===
+1. Testing PostgreSQL connection...
+2025-09-22 03:06:45,543 - taxbit_service - INFO - Database connection failed: connection to server at "localhost" (127.0.0.1), port 5432 failed: Connection refused
+        Is the server running on that host and accepting TCP/IP connections?
+, using RPC mode
+   ❌ PostgreSQL connection failed (expected)
+
+2. Testing LevelDB connections...
+   Testing tx_index...
+2025-09-22 03:06:45,579 - taxbit_service - INFO - Successfully opened LevelDB: /data/.tmp-cintarad/data/tx_index.db
+   ✅ tx_index connection successful
+   Testing evm_index...
+2025-09-22 03:06:45,594 - taxbit_service - INFO - Successfully opened LevelDB: /data/.tmp-cintarad/data/evmindexer.db
+   ✅ evm_index connection successful
+   Testing application...
+2025-09-22 03:06:45,604 - taxbit_service - INFO - Successfully opened LevelDB: /data/.tmp-cintarad/data/application.db
+   ✅ application connection successful
+   Testing blockstore...
+2025-09-22 03:06:45,642 - taxbit_service - INFO - Successfully opened LevelDB: /data/.tmp-cintarad/data/blockstore.db
+   ✅ blockstore connection successful
+   Testing state...
+2025-09-22 03:06:45,687 - taxbit_service - INFO - Successfully opened LevelDB: /data/.tmp-cintarad/data/state.db
+   ✅ state connection successful
+
+=== TESTING TRANSACTION FETCHING ===
+
+3. Testing transaction fetch for 0x400d4a7c9df0b8f438e819b91f7d76b4ed27ce1c...
+   3a. Testing database fetching...
+2025-09-22 03:06:45,687 - taxbit_service - INFO - Database connection failed: connection to server at "localhost" (127.0.0.1), port 5432 failed: Connection refused
+        Is the server running on that host and accepting TCP/IP connections?
+, using RPC mode
+2025-09-22 03:06:45,699 - taxbit_service - INFO - Successfully opened LevelDB: /data/.tmp-cintarad/data/tx_index.db
+2025-09-22 03:06:45,700 - taxbit_service - INFO - Scanning LevelDB tx_index for address: 0x400d4a7c9df0b8f438e819b91f7d76b4ed27ce1c
+[B]8e"6K+] 03:06:45,702 - taxbit_service - INFO - Sample key 1: D998
+Eh...
+2025-09-22 03:06:45,702 - taxbit_service - INFO - Sample value length: 7963 bytes
+2025-09-22 03:06:45,702 - taxbit_service - INFO - Sample key 2: $Ϻ4m.5`b)O...
+2025-09-22 03:06:45,702 - taxbit_service - INFO - Sample value length: 7963 bytes
+2025-09-22 03:06:45,703 - taxbit_service - INFO - Sample key 3: ]ΠlDςeIԴٗ^ј...
+2025-09-22 03:06:45,703 - taxbit_service - INFO - Sample value length: 2773 bytes
+2025-09-22 03:06:45,703 - taxbit_service - INFO - Sample key 4: l0a0sjP71<#+$9...
+2025-09-22 03:06:45,703 - taxbit_service - INFO - Sample value length: 7963 bytes
+2025-09-22 03:06:45,703 - taxbit_service - INFO - Sample key 5: 7ۜS1ƚVgG|S+
+...
+2025-09-22 03:06:45,703 - taxbit_service - INFO - Sample value length: 7963 bytes
+2025-09-22 03:06:45,703 - taxbit_service - INFO - Sample key 6: 'TcH=)*8w~h߳...
+2025-09-22 03:06:45,703 - taxbit_service - INFO - Sample value length: 3319 bytes
+2025-09-22 03:06:45,703 - taxbit_service - INFO - Sample key 7: }~ku̞Ou9ur}e3|G...
+2025-09-22 03:06:45,703 - taxbit_service - INFO - Sample value length: 7964 bytes
+2025-09-22 03:06:45,703 - taxbit_service - INFO - Sample key 8: *N]bw
+                                                                     B>
+y...
+2025-09-22 03:06:45,703 - taxbit_service - INFO - Sample value length: 7966 bytes
+2025-09-22 03:06:45,703 - taxbit_service - INFO - Sample key 9: `cxO~8uS#0...
+2025-09-22 03:06:45,703 - taxbit_service - INFO - Sample value length: 2773 bytes
+2025-09-22 03:06:45,703 - taxbit_service - INFO - Sample key 10: ,izk2Ȭ\I1
+                                                                          ^
+                                                                           ]+...
+2025-09-22 03:06:45,703 - taxbit_service - INFO - Sample value length: 2759 bytes
+2025-09-22 03:06:45,727 - taxbit_service - INFO - Scanned 1000 keys, stopping to avoid timeout
+2025-09-22 03:06:45,727 - taxbit_service - INFO - LevelDB scan complete. Scanned 1000 keys, found 0 matches
+2025-09-22 03:06:45,736 - taxbit_service - INFO - Successfully opened LevelDB: /data/.tmp-cintarad/data/evmindexer.db
+2025-09-22 03:06:45,737 - taxbit_service - INFO - Scanning LevelDB evm_index for address: 0x400d4a7c9df0b8f438e819b91f7d76b4ed27ce1c
+2025-09-22 03:06:45,737 - taxbit_service - INFO - EVM DB sample 1: key= _"/Ml$츳?Suf, value_len=12
+2025-09-22 03:06:45,737 - taxbit_service - INFO - EVM DB sample 2: key=iRE6Gk3
+                                                                              , value_len=12
+X55&V09-22 03:06:45,737 - taxbit_service - INFO - EVM DB sample 3: key=8
+     z0`[W#V6, value_len=12
+2025-09-22 03:06:45,737 - taxbit_service - INFO - EVM DB sample 4: key=?&=j2h븬]                zqQ¬8y\, value_len=12
+2025-09-22 03:06:45,737 - taxbit_service - INFO - EVM DB sample 5: key=N Z9sK3XQ 14'?墐, value_len=12
+2025-09-22 03:06:45,737 - taxbit_service - INFO - EVM LevelDB scan complete. Found 0 EVM transactions
+      Database found 0 transactions
+   3b. Testing RPC fetching...
+2025-09-22 03:06:45,737 - taxbit_service - INFO - Fetching transactions for address: 0x400d4a7c9df0b8f438e819b91f7d76b4ed27ce1c
+2025-09-22 03:06:45,737 - taxbit_service - INFO - Database connection failed: connection to server at "localhost" (127.0.0.1), port 5432 failed: Connection refused
+        Is the server running on that host and accepting TCP/IP connections?
+, using RPC mode
+2025-09-22 03:06:45,749 - taxbit_service - INFO - Successfully opened LevelDB: /data/.tmp-cintarad/data/tx_index.db
+2025-09-22 03:06:45,750 - taxbit_service - INFO - Scanning LevelDB tx_index for address: 0x400d4a7c9df0b8f438e819b91f7d76b4ed27ce1c
+[B]8e"6K+] 03:06:45,751 - taxbit_service - INFO - Sample key 1: D998
+Eh...
+2025-09-22 03:06:45,751 - taxbit_service - INFO - Sample value length: 7963 bytes
+2025-09-22 03:06:45,751 - taxbit_service - INFO - Sample key 2: $Ϻ4m.5`b)O...
+2025-09-22 03:06:45,751 - taxbit_service - INFO - Sample value length: 7963 bytes
+2025-09-22 03:06:45,751 - taxbit_service - INFO - Sample key 3: ]ΠlDςeIԴٗ^ј...
+2025-09-22 03:06:45,751 - taxbit_service - INFO - Sample value length: 2773 bytes
+2025-09-22 03:06:45,751 - taxbit_service - INFO - Sample key 4: l0a0sjP71<#+$9...
+2025-09-22 03:06:45,751 - taxbit_service - INFO - Sample value length: 7963 bytes
+2025-09-22 03:06:45,751 - taxbit_service - INFO - Sample key 5: 7ۜS1ƚVgG|S+
+...
+2025-09-22 03:06:45,751 - taxbit_service - INFO - Sample value length: 7963 bytes
+2025-09-22 03:06:45,751 - taxbit_service - INFO - Sample key 6: 'TcH=)*8w~h߳...
+2025-09-22 03:06:45,751 - taxbit_service - INFO - Sample value length: 3319 bytes
+2025-09-22 03:06:45,751 - taxbit_service - INFO - Sample key 7: }~ku̞Ou9ur}e3|G...
+2025-09-22 03:06:45,751 - taxbit_service - INFO - Sample value length: 7964 bytes
+2025-09-22 03:06:45,751 - taxbit_service - INFO - Sample key 8: *N]bw
+                                                                     B>
+y...
+2025-09-22 03:06:45,751 - taxbit_service - INFO - Sample value length: 7966 bytes
+2025-09-22 03:06:45,751 - taxbit_service - INFO - Sample key 9: `cxO~8uS#0...
+2025-09-22 03:06:45,751 - taxbit_service - INFO - Sample value length: 2773 bytes
+2025-09-22 03:06:45,751 - taxbit_service - INFO - Sample key 10: ,izk2Ȭ\I1
+                                                                          ^
+                                                                           ]+...
+2025-09-22 03:06:45,751 - taxbit_service - INFO - Sample value length: 2759 bytes
+2025-09-22 03:06:45,779 - taxbit_service - INFO - Scanned 1000 keys, stopping to avoid timeout
+2025-09-22 03:06:45,779 - taxbit_service - INFO - LevelDB scan complete. Scanned 1000 keys, found 0 matches
+2025-09-22 03:06:45,789 - taxbit_service - INFO - Successfully opened LevelDB: /data/.tmp-cintarad/data/evmindexer.db
+2025-09-22 03:06:45,789 - taxbit_service - INFO - Scanning LevelDB evm_index for address: 0x400d4a7c9df0b8f438e819b91f7d76b4ed27ce1c
+2025-09-22 03:06:45,789 - taxbit_service - INFO - EVM DB sample 1: key= _"/Ml$츳?Suf, value_len=12
+2025-09-22 03:06:45,789 - taxbit_service - INFO - EVM DB sample 2: key=iRE6Gk3
+                                                                              , value_len=12
+X55&V09-22 03:06:45,789 - taxbit_service - INFO - EVM DB sample 3: key=8
+     z0`[W#V6, value_len=12
+2025-09-22 03:06:45,789 - taxbit_service - INFO - EVM DB sample 4: key=?&=j2h븬]                zqQ¬8y\, value_len=12
+2025-09-22 03:06:45,789 - taxbit_service - INFO - EVM DB sample 5: key=N Z9sK3XQ 14'?墐, value_len=12
+2025-09-22 03:06:45,789 - taxbit_service - INFO - EVM LevelDB scan complete. Found 0 EVM transactions
+2025-09-22 03:06:45,790 - taxbit_service - INFO - Database unavailable, falling back to RPC methods
+2025-09-22 03:06:45,793 - taxbit_service - INFO - Latest block height: 1472634
+2025-09-22 03:06:45,793 - taxbit_service - INFO - Testing with known transaction for test address
+2025-09-22 03:06:45,793 - taxbit_service - INFO - Fetching transaction by hash: 0x50cdbd6ab0fae1a7a65f556e1aa6602eb1e7b5817dea7708a5761f8a87dc36e3
+2025-09-22 03:06:45,799 - taxbit_service - WARNING - Transaction 0x50cdbd6ab0fae1a7a65f556e1aa6602eb1e7b5817dea7708a5761f8a87dc36e3 not found via direct query
+2025-09-22 03:06:45,799 - taxbit_service - INFO - Trying EVM transaction queries
+2025-09-22 03:06:45,799 - taxbit_service - INFO - Fetching EVM transactions via JSON-RPC for address: 0x400d4a7c9df0b8f438e819b91f7d76b4ed27ce1c
+2025-09-22 03:06:45,806 - taxbit_service - INFO - EVM RPC response: {'jsonrpc': '2.0', 'id': 1, 'result': '0xd3'}
+2025-09-22 03:06:45,806 - taxbit_service - INFO - Address 0x400d4a7c9df0b8f438e819b91f7d76b4ed27ce1c has 211 transactions
+2025-09-22 03:06:45,806 - taxbit_service - INFO - Attempting to fetch EVM transactions for 0x400d4a7c9df0b8f438e819b91f7d76b4ed27ce1c
+2025-09-22 03:06:45,810 - taxbit_service - INFO - Found 10 transactions via RPC methods
+      RPC found 10 transactions
+   3c. Testing known transaction fetch...
+2025-09-22 03:06:45,810 - taxbit_service - INFO - Fetching transaction by hash: 0x50cdbd6ab0fae1a7a65f556e1aa6602eb1e7b5817dea7708a5761f8a87dc36e3
+2025-09-22 03:06:45,811 - taxbit_service - WARNING - Transaction 0x50cdbd6ab0fae1a7a65f556e1aa6602eb1e7b5817dea7708a5761f8a87dc36e3 not found via direct query
+      ❌ Known transaction fetch failed
+
+3. Testing transaction fetch for cintara1xyz......
+   3a. Testing database fetching...
+2025-09-22 03:06:45,811 - taxbit_service - INFO - Database connection failed: connection to server at "localhost" (127.0.0.1), port 5432 failed: Connection refused
+        Is the server running on that host and accepting TCP/IP connections?
+, using RPC mode
+2025-09-22 03:06:45,823 - taxbit_service - INFO - Successfully opened LevelDB: /data/.tmp-cintarad/data/tx_index.db
+2025-09-22 03:06:45,823 - taxbit_service - INFO - Scanning LevelDB tx_index for address: cintara1xyz...
+[B]8e"6K+] 03:06:45,825 - taxbit_service - INFO - Sample key 1: D998
+Eh...
+2025-09-22 03:06:45,825 - taxbit_service - INFO - Sample value length: 7963 bytes
+2025-09-22 03:06:45,825 - taxbit_service - INFO - Sample key 2: $Ϻ4m.5`b)O...
+2025-09-22 03:06:45,825 - taxbit_service - INFO - Sample value length: 7963 bytes
+2025-09-22 03:06:45,825 - taxbit_service - INFO - Sample key 3: ]ΠlDςeIԴٗ^ј...
+2025-09-22 03:06:45,825 - taxbit_service - INFO - Sample value length: 2773 bytes
+2025-09-22 03:06:45,825 - taxbit_service - INFO - Sample key 4: l0a0sjP71<#+$9...
+2025-09-22 03:06:45,825 - taxbit_service - INFO - Sample value length: 7963 bytes
+2025-09-22 03:06:45,825 - taxbit_service - INFO - Sample key 5: 7ۜS1ƚVgG|S+
+...
+2025-09-22 03:06:45,825 - taxbit_service - INFO - Sample value length: 7963 bytes
+2025-09-22 03:06:45,825 - taxbit_service - INFO - Sample key 6: 'TcH=)*8w~h߳...
+2025-09-22 03:06:45,825 - taxbit_service - INFO - Sample value length: 3319 bytes
+2025-09-22 03:06:45,825 - taxbit_service - INFO - Sample key 7: }~ku̞Ou9ur}e3|G...
+2025-09-22 03:06:45,825 - taxbit_service - INFO - Sample value length: 7964 bytes
+2025-09-22 03:06:45,825 - taxbit_service - INFO - Sample key 8: *N]bw
+                                                                     B>
+y...
+2025-09-22 03:06:45,825 - taxbit_service - INFO - Sample value length: 7966 bytes
+2025-09-22 03:06:45,825 - taxbit_service - INFO - Sample key 9: `cxO~8uS#0...
+2025-09-22 03:06:45,825 - taxbit_service - INFO - Sample value length: 2773 bytes
+2025-09-22 03:06:45,825 - taxbit_service - INFO - Sample key 10: ,izk2Ȭ\I1
+                                                                          ^
+                                                                           ]+...
+2025-09-22 03:06:45,825 - taxbit_service - INFO - Sample value length: 2759 bytes
+2025-09-22 03:06:45,852 - taxbit_service - INFO - Scanned 1000 keys, stopping to avoid timeout
+2025-09-22 03:06:45,852 - taxbit_service - INFO - LevelDB scan complete. Scanned 1000 keys, found 0 matches
+      Database found 0 transactions
+   3b. Testing RPC fetching...
+2025-09-22 03:06:45,853 - taxbit_service - INFO - Fetching transactions for address: cintara1xyz...
+2025-09-22 03:06:45,853 - taxbit_service - INFO - Database connection failed: connection to server at "localhost" (127.0.0.1), port 5432 failed: Connection refused
+        Is the server running on that host and accepting TCP/IP connections?
+, using RPC mode
+2025-09-22 03:06:45,865 - taxbit_service - INFO - Successfully opened LevelDB: /data/.tmp-cintarad/data/tx_index.db
+2025-09-22 03:06:45,865 - taxbit_service - INFO - Scanning LevelDB tx_index for address: cintara1xyz...
+[B]8e"6K+] 03:06:45,866 - taxbit_service - INFO - Sample key 1: D998
+Eh...
+2025-09-22 03:06:45,866 - taxbit_service - INFO - Sample value length: 7963 bytes
+2025-09-22 03:06:45,866 - taxbit_service - INFO - Sample key 2: $Ϻ4m.5`b)O...
+2025-09-22 03:06:45,866 - taxbit_service - INFO - Sample value length: 7963 bytes
+2025-09-22 03:06:45,866 - taxbit_service - INFO - Sample key 3: ]ΠlDςeIԴٗ^ј...
+2025-09-22 03:06:45,866 - taxbit_service - INFO - Sample value length: 2773 bytes
+2025-09-22 03:06:45,866 - taxbit_service - INFO - Sample key 4: l0a0sjP71<#+$9...
+2025-09-22 03:06:45,866 - taxbit_service - INFO - Sample value length: 7963 bytes
+2025-09-22 03:06:45,866 - taxbit_service - INFO - Sample key 5: 7ۜS1ƚVgG|S+
+...
+2025-09-22 03:06:45,866 - taxbit_service - INFO - Sample value length: 7963 bytes
+2025-09-22 03:06:45,867 - taxbit_service - INFO - Sample key 6: 'TcH=)*8w~h߳...
+2025-09-22 03:06:45,867 - taxbit_service - INFO - Sample value length: 3319 bytes
+2025-09-22 03:06:45,867 - taxbit_service - INFO - Sample key 7: }~ku̞Ou9ur}e3|G...
+2025-09-22 03:06:45,867 - taxbit_service - INFO - Sample value length: 7964 bytes
+2025-09-22 03:06:45,867 - taxbit_service - INFO - Sample key 8: *N]bw
+                                                                     B>
+y...
+2025-09-22 03:06:45,867 - taxbit_service - INFO - Sample value length: 7966 bytes
+2025-09-22 03:06:45,867 - taxbit_service - INFO - Sample key 9: `cxO~8uS#0...
+2025-09-22 03:06:45,867 - taxbit_service - INFO - Sample value length: 2773 bytes
+2025-09-22 03:06:45,867 - taxbit_service - INFO - Sample key 10: ,izk2Ȭ\I1
+                                                                          ^
+                                                                           ]+...
+2025-09-22 03:06:45,867 - taxbit_service - INFO - Sample value length: 2759 bytes
+2025-09-22 03:06:45,884 - taxbit_service - INFO - Scanned 1000 keys, stopping to avoid timeout
+2025-09-22 03:06:45,884 - taxbit_service - INFO - LevelDB scan complete. Scanned 1000 keys, found 0 matches
+2025-09-22 03:06:45,884 - taxbit_service - INFO - Database unavailable, falling back to RPC methods
+2025-09-22 03:06:45,887 - taxbit_service - INFO - Latest block height: 1472634
+2025-09-22 03:06:45,887 - taxbit_service - INFO - Trying Cosmos transaction queries
+2025-09-22 03:06:45,890 - taxbit_service - INFO - Trying block scanning for Cosmos address
+2025-09-22 03:06:45,892 - taxbit_service - INFO - Scanning multiple block ranges for address cintara1xyz...
+2025-09-22 03:06:45,892 - taxbit_service - INFO - Scanning blocks 1330400 to 1330500
+2025-09-22 03:06:46,006 - taxbit_service - INFO - Found 1 transactions in block 1330420
+2025-09-22 03:06:46,006 - taxbit_service - INFO - Processing transaction 0 in block 1330420: hash=0xfeec6e0899a845c4249f070f7ee7f92b0f898767c5d8ce740d5f98824ac93880
+2025-09-22 03:06:46,007 - taxbit_service - INFO - Found EVM recipient: 0x766d2e76312e4d7367457468657265756d547812
+2025-09-22 03:06:46,033 - taxbit_service - INFO - Block scanning complete. Found 1 transactions in 1 blocks
+2025-09-22 03:06:46,034 - taxbit_service - INFO - Found 1 transactions via RPC methods
+      RPC found 1 transactions
+
+=== TESTING EVM JSON-RPC INTEGRATION ===
+4. Testing EVM JSON-RPC for 0x400d4a7c9df0b8f438e819b91f7d76b4ed27ce1c...
+2025-09-22 03:06:46,034 - taxbit_service - INFO - Fetching EVM transactions via JSON-RPC for address: 0x400d4a7c9df0b8f438e819b91f7d76b4ed27ce1c
+2025-09-22 03:06:46,036 - taxbit_service - INFO - EVM RPC response: {'jsonrpc': '2.0', 'id': 1, 'result': '0xd3'}
+2025-09-22 03:06:46,036 - taxbit_service - INFO - Address 0x400d4a7c9df0b8f438e819b91f7d76b4ed27ce1c has 211 transactions
+   EVM JSON-RPC found 10 transactions
+   Sample EVM transaction:
+     hash: evm_rpc_0x400d4a7c9df0b8f438e819b91f7d76b4ed27ce1c_0
+     height: 0
+     timestamp: 2025-09-22T03:06:46.036384+00:00
+     success: True
+     type: MsgEthereumTx
+     from_address: 0x400d4a7c9df0b8f438e819b91f7d76b4ed27ce1c
+     to_address:
+     amount: 0
+     denom: cint
+     fee: 0
+     memo: EVM transaction #0 via JSON-RPC
+     events: []
+
+=== TESTING TAXBIT EXPORT ===
+5. Testing TaxBit export for 0x400d4a7c9df0b8f438e819b91f7d76b4ed27ce1c...
+2025-09-22 03:06:46,036 - taxbit_service - INFO - Fetching transactions for address: 0x400d4a7c9df0b8f438e819b91f7d76b4ed27ce1c
+2025-09-22 03:06:46,036 - taxbit_service - INFO - Fetching transactions for address: 0x400d4a7c9df0b8f438e819b91f7d76b4ed27ce1c
+2025-09-22 03:06:46,036 - taxbit_service - INFO - Database connection failed: connection to server at "localhost" (127.0.0.1), port 5432 failed: Connection refused
+        Is the server running on that host and accepting TCP/IP connections?
+, using RPC mode
+2025-09-22 03:06:46,046 - taxbit_service - INFO - Successfully opened LevelDB: /data/.tmp-cintarad/data/tx_index.db
+2025-09-22 03:06:46,046 - taxbit_service - INFO - Scanning LevelDB tx_index for address: 0x400d4a7c9df0b8f438e819b91f7d76b4ed27ce1c
+[B]8e"6K+] 03:06:46,047 - taxbit_service - INFO - Sample key 1: D998
+Eh...
+2025-09-22 03:06:46,047 - taxbit_service - INFO - Sample value length: 7963 bytes
+2025-09-22 03:06:46,047 - taxbit_service - INFO - Sample key 2: $Ϻ4m.5`b)O...
+2025-09-22 03:06:46,047 - taxbit_service - INFO - Sample value length: 7963 bytes
+2025-09-22 03:06:46,047 - taxbit_service - INFO - Sample key 3: ]ΠlDςeIԴٗ^ј...
+2025-09-22 03:06:46,047 - taxbit_service - INFO - Sample value length: 2773 bytes
+2025-09-22 03:06:46,047 - taxbit_service - INFO - Sample key 4: l0a0sjP71<#+$9...
+2025-09-22 03:06:46,047 - taxbit_service - INFO - Sample value length: 7963 bytes
+2025-09-22 03:06:46,048 - taxbit_service - INFO - Sample key 5: 7ۜS1ƚVgG|S+
+...
+2025-09-22 03:06:46,048 - taxbit_service - INFO - Sample value length: 7963 bytes
+2025-09-22 03:06:46,048 - taxbit_service - INFO - Sample key 6: 'TcH=)*8w~h߳...
+2025-09-22 03:06:46,048 - taxbit_service - INFO - Sample value length: 3319 bytes
+2025-09-22 03:06:46,048 - taxbit_service - INFO - Sample key 7: }~ku̞Ou9ur}e3|G...
+2025-09-22 03:06:46,048 - taxbit_service - INFO - Sample value length: 7964 bytes
+2025-09-22 03:06:46,048 - taxbit_service - INFO - Sample key 8: *N]bw
+                                                                     B>
+y...
+2025-09-22 03:06:46,048 - taxbit_service - INFO - Sample value length: 7966 bytes
+2025-09-22 03:06:46,048 - taxbit_service - INFO - Sample key 9: `cxO~8uS#0...
+2025-09-22 03:06:46,048 - taxbit_service - INFO - Sample value length: 2773 bytes
+2025-09-22 03:06:46,048 - taxbit_service - INFO - Sample key 10: ,izk2Ȭ\I1
+                                                                          ^
+                                                                           ]+...
+2025-09-22 03:06:46,048 - taxbit_service - INFO - Sample value length: 2759 bytes
+2025-09-22 03:06:46,074 - taxbit_service - INFO - Scanned 1000 keys, stopping to avoid timeout
+2025-09-22 03:06:46,074 - taxbit_service - INFO - LevelDB scan complete. Scanned 1000 keys, found 0 matches
+2025-09-22 03:06:46,084 - taxbit_service - INFO - Successfully opened LevelDB: /data/.tmp-cintarad/data/evmindexer.db
+2025-09-22 03:06:46,085 - taxbit_service - INFO - Scanning LevelDB evm_index for address: 0x400d4a7c9df0b8f438e819b91f7d76b4ed27ce1c
+2025-09-22 03:06:46,085 - taxbit_service - INFO - EVM DB sample 1: key= _"/Ml$츳?Suf, value_len=12
+2025-09-22 03:06:46,085 - taxbit_service - INFO - EVM DB sample 2: key=iRE6Gk3
+                                                                              , value_len=12
+X55&V09-22 03:06:46,085 - taxbit_service - INFO - EVM DB sample 3: key=8
+     z0`[W#V6, value_len=12
+2025-09-22 03:06:46,085 - taxbit_service - INFO - EVM DB sample 4: key=?&=j2h븬]                zqQ¬8y\, value_len=12
+2025-09-22 03:06:46,085 - taxbit_service - INFO - EVM DB sample 5: key=N Z9sK3XQ 14'?墐, value_len=12
+2025-09-22 03:06:46,085 - taxbit_service - INFO - EVM LevelDB scan complete. Found 0 EVM transactions
+2025-09-22 03:06:46,085 - taxbit_service - INFO - Database unavailable, falling back to RPC methods
+2025-09-22 03:06:46,088 - taxbit_service - INFO - Latest block height: 1472634
+2025-09-22 03:06:46,088 - taxbit_service - INFO - Testing with known transaction for test address
+2025-09-22 03:06:46,088 - taxbit_service - INFO - Fetching transaction by hash: 0x50cdbd6ab0fae1a7a65f556e1aa6602eb1e7b5817dea7708a5761f8a87dc36e3
+2025-09-22 03:06:46,090 - taxbit_service - WARNING - Transaction 0x50cdbd6ab0fae1a7a65f556e1aa6602eb1e7b5817dea7708a5761f8a87dc36e3 not found via direct query
+2025-09-22 03:06:46,090 - taxbit_service - INFO - Trying EVM transaction queries
+2025-09-22 03:06:46,090 - taxbit_service - INFO - Fetching EVM transactions via JSON-RPC for address: 0x400d4a7c9df0b8f438e819b91f7d76b4ed27ce1c
+2025-09-22 03:06:46,092 - taxbit_service - INFO - EVM RPC response: {'jsonrpc': '2.0', 'id': 1, 'result': '0xd3'}
+2025-09-22 03:06:46,092 - taxbit_service - INFO - Address 0x400d4a7c9df0b8f438e819b91f7d76b4ed27ce1c has 211 transactions
+2025-09-22 03:06:46,092 - taxbit_service - INFO - Attempting to fetch EVM transactions for 0x400d4a7c9df0b8f438e819b91f7d76b4ed27ce1c
+2025-09-22 03:06:46,097 - taxbit_service - INFO - Found 0 transactions via RPC methods
+2025-09-22 03:06:46,097 - taxbit_service - WARNING - No transactions found for address: 0x400d4a7c9df0b8f438e819b91f7d76b4ed27ce1c
+   Generated CSV with 2 lines
+   CSV Preview (first 300 chars):
+   timestamp,txid,source_name,from_wallet_address,to_wallet_address,category,in_currency,in_amount,in_currency_fiat,in_amount_fiat,out_currency,out_amount,out_currency_fiat,out_amount_fiat,fee_currency,fee,fee_currency_fiat,fee_fiat,memo,status
+...
+   ✅ Sample export saved to /tmp/taxbit_sample_export.csv
+
+=== SERVICE STATUS SUMMARY ===
+Configuration:
+  Node URL: http://localhost:26657
+  REST API URL: http://localhost:1317
+  EVM RPC URL: http://localhost:8545
+  LevelDB Paths: {'tx_index': '/data/.tmp-cintarad/data/tx_index.db', 'evm_index': '/data/.tmp-cintarad/data/evmindexer.db', 'application': '/data/.tmp-cintarad/data/application.db', 'blockstore': '/data/.tmp-cintarad/data/blockstore.db', 'state': '/data/.tmp-cintarad/data/state.db'}
+
+Endpoint Status:
+  ✅ Cosmos RPC: OK
+  ✅ Cosmos REST: OK
+  ✅ EVM JSON-RPC: OK
+
+==================================================
+TEST SUITE COMPLETE
+Check the logs above for any errors or issues.
+If tests pass, the updated TaxBit service is ready for production!

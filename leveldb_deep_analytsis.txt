@@ -1,0 +1,121 @@
+root@ip-172-31-32-239:/home/ubuntu/cintara-node-llm-bridge#   python3 leveldb_analyzer.py > leveldb_deep_analysis.txt 2>&1
+root@ip-172-31-32-239:/home/ubuntu/cintara-node-llm-bridge#   cat leveldb_deep_analysis.txt
+CINTARA LEVELDB ADVANCED ANALYZER
+==================================================
+
+=== ANALYZING TX_INDEX KEY PATTERNS ===
+Analyzed 50 keys from tx_index
+Key length distribution:
+  Length 32: 50 keys
+
+Transaction-related keys in tx_index:
+Found 50 potential transaction keys
+  {'length': 32, 'hex': '000744b8f2398f8039af380d5b425dde386522ab...', 'ascii': '\x00\x07D998\r[B]8e"6K+]\nEh', 'value_size': 7963, 'type': 'hash_32'}
+  {'length': 32, 'hex': '0024cfba19e4bdf81f0e0fac349faf886dc92ead...', 'ascii': '\x00$Ϻ\x19\x1f\x0e\x0f4m.5\x18`b)O', 'value_size': 7963, 'type': 'hash_32'}
+  {'length': 32, 'hex': '005dd703cea081a16cad074407cf82e2936549d4...', 'ascii': '\x00]\x03Πl\x07D\x07ςeIԴٗ^ј', 'value_size': 2773, 'type': 'hash_32'}
+  {'length': 32, 'hex': '006c3081146130d4f782cccd736aeacb50013731...', 'ascii': '\x00l0\x14a0sjP\x0171<#\x12+$9', 'value_size': 7963, 'type': 'hash_32'}
+  {'length': 32, 'hex': '0085c137db9cbe531bc96d7f1931c69a9ae6568c...', 'ascii': '\x007ۜS\x1bm\x7f\x191ƚV\x19gG|S+\n', 'value_size': 7963, 'type': 'hash_32'}
+
+=== ANALYZING EVM_INDEX KEY PATTERNS ===
+Analyzed 38 keys from evm_index
+Key length distribution:
+  Length 17: 19 keys
+  Length 33: 19 keys
+
+Transaction-related keys in evm_index:
+Found 0 potential transaction keys
+
+=== ANALYZING BLOCKSTORE KEY PATTERNS ===
+Failed to open blockstore: b'Corruption: 55 missing files; e.g.: /data/.tmp-cintarad/data/blockstore.db/014059.ldb'
+
+=== EXPLORING TRANSACTION STRUCTURE FOR 0x400d4a7c9df0b8f438e819b91f7d76b4ed27ce1c ===
+Scanning for address-related keys...
+
+Scanned 2000 keys, found 0 matches
+
+=== EXTRACTING RECENT TRANSACTIONS (LIMIT: 10) ===
+
+📄 TRANSACTION #1
+Key: 000744b8f2398f8039af380d5b425dde...
+Hash: 0xb0d16ccab4fbbd3ebdfbd0e5af0409a50639276b88c503907759b36c90349f72
+Type: MsgEthereumTx
+From: 0x08978b0610061ab2200aa6200af21f0a1f2f6574
+To: 0x6865726d696e742e65766d2e76312e4d73674574
+Amount: 2352578990890944016
+
+📄 TRANSACTION #2
+Key: 0024cfba19e4bdf81f0e0fac349faf88...
+Hash: 0x598f6aaf4cb87886843b40d382a60e35eccb2c7f1755e7180f0c34f00b30d1f5
+Type: MsgEthereumTx
+From: 0x08d38c0610081ab2200aa6200af21f0a1f2f6574
+To: 0x6865726d696e742e65766d2e76312e4d73674574
+Amount: 2355974176999115987
+
+📄 TRANSACTION #3
+Key: 005dd703cea081a16cad074407cf82e2...
+Hash: 0xad24d6877e45a49545030d1bc95a223929ab850110dea34dcb000f993b0bf3c8
+Type: MsgEthereumTx
+From: 0x0895d00110011ad7020acc020a98020a1f2f6574
+To: 0x6865726d696e742e65766d2e76312e4d73674574
+Amount: 14988278631797031434
+
+📄 TRANSACTION #4
+Key: 006c3081146130d4f782cccd736aeacb...
+Hash: 0x9470e8222072e9209b8da7cc4b86ab0bd9fd122777befb546370e42d7911f31b
+Type: MsgEthereumTx
+From: 0x08c28c0610071ab2200aa6200af21f0a1f2f6574
+To: 0x6865726d696e742e65766d2e76312e4d73674574
+Amount: 1154921181787891232
+
+📄 TRANSACTION #5
+Key: 0085c137db9cbe531bc96d7f1931c69a...
+Hash: 0xc2ba4f29c37a2f90755a7b8ecb891b212f7a4ea9725b7775b75cff2d9ee79cc6
+Type: MsgEthereumTx
+From: 0x08a78b0610061ab2200aa6200af21f0a1f2f6574
+To: 0x6865726d696e742e65766d2e76312e4d73674574
+Amount: 2352578990890944016
+
+📄 TRANSACTION #6
+Key: 00868827a554a763a448193d87f60516...
+Hash: 0x7340881fda560ffc664fcc7bed22e4916d1255b046e3d6286f8ffa6de6346b87
+Type: MsgEthereumTx
+From: 0x08bde4251af6020adb020aa7020a1f2f65746865
+To: 0x726d696e742e65766d2e76312e4d736745746865
+Amount: 721379726378539557
+
+📄 TRANSACTION #7
+Key: 00967dc3cb7e6b75a4afcc9e4f751306...
+Hash: 0x3460540d984e956f8b3894f38d465f2e0e96e3744fa3b5623e3d2d662b7272e0
+Type: MsgEthereumTx
+From: 0x08c68d0610061ab2200aa6200af21f0a1f2f6574
+To: 0x6865726d696e742e65766d2e76312e4d73674574
+Amount: 2352578990890944016
+
+📄 TRANSACTION #8
+Key: 00a388862a4e0297cedaf6dc5d6285c1...
+Hash: 0x4ee250d6442e2b7b88ebd43cd9e8bba7e2a69c5034e95db798d74bb78db68cd1
+Type: MsgEthereumTx
+From: 0x08808d06100b1ab2200aa6200af21f0a1f2f6574
+To: 0x6865726d696e742e65766d2e76312e4d73674574
+Amount: 729778964558513805
+
+📄 TRANSACTION #9
+Key: 00b660c063789be7bbd2e486f5b3b299...
+Hash: 0x74b6690d3c87fc314cec33d7f1a2ba33fa582c66dd9efeaedc80862200e64a3a
+Type: MsgEthereumTx
+From: 0x0883cb0110031ad7020acc020a98020a1f2f6574
+To: 0x6865726d696e742e65766d2e76312e4d73674574
+Amount: 14702567056382038017
+
+📄 TRANSACTION #10
+Key: 00bc2c69eb7ae2126bf31132c8ac8e5c...
+Hash: 0xdf8d23943501b485c7846b82dc0cc4320809433b367c53fea1d9fd43aa545d75
+Type: MsgEthereumTx
+From: 0x08f98f061ad6020acb020a97020a1f2f65746865
+To: 0x726d696e742e65766d2e76312e4d736745746865
+Amount: 646705277887185418
+
+Extracted 10 transactions
+
+✅ Analysis complete! Results saved to /tmp/leveldb_analysis_results.json
+This analysis will help improve transaction extraction accuracy.

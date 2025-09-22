@@ -1,0 +1,220 @@
+{
+  "analysis_summary": "LevelDB structure analysis complete",
+  "databases_analyzed": [
+    "tx_index",
+    "evm_index",
+    "blockstore"
+  ],
+  "extracted_transactions": [
+    {
+      "hash": "0xb0d16ccab4fbbd3ebdfbd0e5af0409a50639276b88c503907759b36c90349f72",
+      "key_hex": "000744b8f2398f8039af380d5b425dde386522ab36dfe54b2b9c5d0a4568a4f7",
+      "raw_size": 7963,
+      "type": "MsgEthereumTx",
+      "from_address": "0x08978b0610061ab2200aa6200af21f0a1f2f6574",
+      "to_address": "0x6865726d696e742e65766d2e76312e4d73674574",
+      "amount": "2352578990890944016",
+      "timestamp": "",
+      "success": true,
+      "found_addresses": [
+        "0x08978b0610061ab2200aa6200af21f0a1f2f6574",
+        "0x6865726d696e742e65766d2e76312e4d73674574",
+        "0x68657265756d547812ce1f0a871f0a1a2f657468"
+      ],
+      "found_amounts": [
+        "2352578990890944016",
+        "10017712039535976458",
+        "436855875582298790"
+      ]
+    },
+    {
+      "hash": "0x598f6aaf4cb87886843b40d382a60e35eccb2c7f1755e7180f0c34f00b30d1f5",
+      "key_hex": "0024cfba19e4bdf81f0e0fac349faf886dc92ead351891cc6062fe29c9cbdc4f",
+      "raw_size": 7963,
+      "type": "MsgEthereumTx",
+      "from_address": "0x08d38c0610081ab2200aa6200af21f0a1f2f6574",
+      "to_address": "0x6865726d696e742e65766d2e76312e4d73674574",
+      "amount": "2355974176999115987",
+      "timestamp": "",
+      "success": true,
+      "found_addresses": [
+        "0x08d38c0610081ab2200aa6200af21f0a1f2f6574",
+        "0x6865726d696e742e65766d2e76312e4d73674574",
+        "0x68657265756d547812ce1f0a871f0a1a2f657468"
+      ],
+      "found_amounts": [
+        "2355974176999115987",
+        "12833578953068040968",
+        "2352578990890944528"
+      ]
+    },
+    {
+      "hash": "0xad24d6877e45a49545030d1bc95a223929ab850110dea34dcb000f993b0bf3c8",
+      "key_hex": "005dd703cea081a16cad074407cf82e2936549d4b4e7d0d997a55ed198ab8fea",
+      "raw_size": 2773,
+      "type": "MsgEthereumTx",
+      "from_address": "0x0895d00110011ad7020acc020a98020a1f2f6574",
+      "to_address": "0x6865726d696e742e65766d2e76312e4d73674574",
+      "amount": "14988278631797031434",
+      "timestamp": "",
+      "success": true,
+      "found_addresses": [
+        "0x0895d00110011ad7020acc020a98020a1f2f6574",
+        "0x6865726d696e742e65766d2e76312e4d73674574",
+        "0x68657265756d547812f4010aad010a1a2f657468"
+      ],
+      "found_amounts": [
+        "14988278631797031434",
+        "10795129475056719618",
+        "76562408453311180"
+      ]
+    },
+    {
+      "hash": "0x9470e8222072e9209b8da7cc4b86ab0bd9fd122777befb546370e42d7911f31b",
+      "key_hex": "006c3081146130d4f782cccd736aeacb50013731cd3c23122be7c8d124eff239",
+      "raw_size": 7963,
+      "type": "MsgEthereumTx",
+      "from_address": "0x08c28c0610071ab2200aa6200af21f0a1f2f6574",
+      "to_address": "0x6865726d696e742e65766d2e76312e4d73674574",
+      "amount": "1154921181787891232",
+      "timestamp": "",
+      "success": true,
+      "found_addresses": [
+        "0x08c28c0610071ab2200aa6200af21f0a1f2f6574",
+        "0x6865726d696e742e65766d2e76312e4d73674574",
+        "0x68657265756d547812ce1f0a871f0a1a2f657468"
+      ],
+      "found_amounts": [
+        "1154921181787891232",
+        "729778964491404940",
+        "11964411309376081926"
+      ]
+    },
+    {
+      "hash": "0xc2ba4f29c37a2f90755a7b8ecb891b212f7a4ea9725b7775b75cff2d9ee79cc6",
+      "key_hex": "0085c137db9cbe531bc96d7f1931c69a9ae6568ce1b119819167477cfa532b0a",
+      "raw_size": 7963,
+      "type": "MsgEthereumTx",
+      "from_address": "0x08a78b0610061ab2200aa6200af21f0a1f2f6574",
+      "to_address": "0x6865726d696e742e65766d2e76312e4d73674574",
+      "amount": "2352578990890944016",
+      "timestamp": "",
+      "success": true,
+      "found_addresses": [
+        "0x08a78b0610061ab2200aa6200af21f0a1f2f6574",
+        "0x6865726d696e742e65766d2e76312e4d73674574",
+        "0x68657265756d547812ce1f0a871f0a1a2f657468"
+      ],
+      "found_amounts": [
+        "2352578990890944016",
+        "10017712039535976458",
+        "436855875582298790"
+      ]
+    },
+    {
+      "hash": "0x7340881fda560ffc664fcc7bed22e4916d1255b046e3d6286f8ffa6de6346b87",
+      "key_hex": "00868827a554a763a448193d87f6051629d82a38f1e8777e68f0e3e5e8dfb396",
+      "raw_size": 3319,
+      "type": "MsgEthereumTx",
+      "from_address": "0x08bde4251af6020adb020aa7020a1f2f65746865",
+      "to_address": "0x726d696e742e65766d2e76312e4d736745746865",
+      "amount": "721379726378539557",
+      "timestamp": "",
+      "success": true,
+      "found_addresses": [
+        "0x08bde4251af6020adb020aa7020a1f2f65746865",
+        "0x726d696e742e65766d2e76312e4d736745746865",
+        "0x7265756d54781283020abc010a1e2f6574686572"
+      ],
+      "found_amounts": [
+        "721379726378539557",
+        "13683102365585115867",
+        "629910370918990346"
+      ]
+    },
+    {
+      "hash": "0x3460540d984e956f8b3894f38d465f2e0e96e3744fa3b5623e3d2d662b7272e0",
+      "key_hex": "00967dc3cb7e6b75a4afcc9e4f7513063904dc75727db5f7b91765337c47c9de",
+      "raw_size": 7964,
+      "type": "MsgEthereumTx",
+      "from_address": "0x08c68d0610061ab2200aa6200af21f0a1f2f6574",
+      "to_address": "0x6865726d696e742e65766d2e76312e4d73674574",
+      "amount": "2352578990890944016",
+      "timestamp": "",
+      "success": true,
+      "found_addresses": [
+        "0x08c68d0610061ab2200aa6200af21f0a1f2f6574",
+        "0x6865726d696e742e65766d2e76312e4d73674574",
+        "0x68657265756d547812ce1f0a871f0a1a2f657468"
+      ],
+      "found_amounts": [
+        "2352578990890944016",
+        "436855875582298790",
+        "632347854870289074"
+      ]
+    },
+    {
+      "hash": "0x4ee250d6442e2b7b88ebd43cd9e8bba7e2a69c5034e95db798d74bb78db68cd1",
+      "key_hex": "00a388862a4e0297cedaf6dc5d6285c177ec0cc242dbe53eb5c20ac179fff700",
+      "raw_size": 7966,
+      "type": "MsgEthereumTx",
+      "from_address": "0x08808d06100b1ab2200aa6200af21f0a1f2f6574",
+      "to_address": "0x6865726d696e742e65766d2e76312e4d73674574",
+      "amount": "729778964558513805",
+      "timestamp": "",
+      "success": true,
+      "found_addresses": [
+        "0x08808d06100b1ab2200aa6200af21f0a1f2f6574",
+        "0x6865726d696e742e65766d2e76312e4d73674574",
+        "0x68657265756d547812ce1f0a871f0a1a2f657468"
+      ],
+      "found_amounts": [
+        "729778964558513805",
+        "10161827249086668810",
+        "1156047081694733856"
+      ]
+    },
+    {
+      "hash": "0x74b6690d3c87fc314cec33d7f1a2ba33fa582c66dd9efeaedc80862200e64a3a",
+      "key_hex": "00b660c063789be7bbd2e486f5b3b29910f24f7efa38d51604759d53a1c12330",
+      "raw_size": 2773,
+      "type": "MsgEthereumTx",
+      "from_address": "0x0883cb0110031ad7020acc020a98020a1f2f6574",
+      "to_address": "0x6865726d696e742e65766d2e76312e4d73674574",
+      "amount": "14702567056382038017",
+      "timestamp": "",
+      "success": true,
+      "found_addresses": [
+        "0x0883cb0110031ad7020acc020a98020a1f2f6574",
+        "0x6865726d696e742e65766d2e76312e4d73674574",
+        "0x68657265756d547812f4010aad010a1a2f657468"
+      ],
+      "found_amounts": [
+        "14702567056382038017",
+        "76564607476566732",
+        "201547090639848208"
+      ]
+    },
+    {
+      "hash": "0xdf8d23943501b485c7846b82dc0cc4320809433b367c53fea1d9fd43aa545d75",
+      "key_hex": "00bc2c69eb7ae2126bf31132c8ac8e5c4931feea0cbeb1e6e0f25e0c5d2bae89",
+      "raw_size": 2759,
+      "type": "MsgEthereumTx",
+      "from_address": "0x08f98f061ad6020acb020a97020a1f2f65746865",
+      "to_address": "0x726d696e742e65766d2e76312e4d736745746865",
+      "amount": "646705277887185418",
+      "timestamp": "",
+      "success": true,
+      "found_addresses": [
+        "0x08f98f061ad6020acb020a97020a1f2f65746865",
+        "0x726d696e742e65766d2e76312e4d736745746865",
+        "0x7265756d547812f3010aac010a1a2f6574686572"
+      ],
+      "found_amounts": [
+        "646705277887185418",
+        "721362134190397958",
+        "1933735335381043863"
+      ]
+    }
+  ]
+}
