@@ -1,24 +1,18 @@
 services:
-  # Fully Automated Cintara Node with LLM and AI Bridge
+  # Unified Cintara Node with LLM and AI Bridge
   cintara-unified:
     build:
       context: .
       dockerfile: Dockerfile.unified
-    container_name: cintara-unified-automated
+    container_name: cintara-unified-node
     restart: unless-stopped
     environment:
-      # Node Configuration (these can be customized)
-      - MONIKER=cintara-automated-node
       - CHAIN_ID=cintara_11001-1
-      - OVERWRITE_CONFIG=y
-      - AUTO_START=true
-      # Service URLs
+      - MONIKER=team-unified-node
       - LLAMA_SERVER_URL=http://localhost:8000
       - CINTARA_NODE_URL=http://localhost:26657
       - LOG_PATH=/app/logs
       - AI_FEATURES_ENABLED=true
-      # Logging
-      - LOG_LEVEL=info
     ports:
       # Cintara node ports
       - "26657:26657"  # RPC
@@ -34,7 +28,6 @@ services:
       - cintara_home:/home/cintara/data
       - model_cache:/models
       - bridge_logs:/app/logs
-      - supervisor_logs:/var/log/supervisor
     deploy:
       resources:
         limits:
@@ -48,9 +41,9 @@ services:
       interval: 60s
       timeout: 30s
       retries: 3
-      start_period: 300s  # 5 minutes for full startup
+      start_period: 180s
 
-# Networks
+# Networks (optional, but good practice)
 networks:
   default:
     driver: bridge
@@ -64,6 +57,4 @@ volumes:
   model_cache:
     driver: local
   bridge_logs:
-    driver: local
-  supervisor_logs:
     driver: local

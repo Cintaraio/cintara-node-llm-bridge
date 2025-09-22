@@ -1,0 +1,163 @@
+FROM ubuntu:22.04
+
+# Set environment variables
+ENV DEBIAN_FRONTEND=noninteractive
+ENV CHAIN_ID=cintara_11001-1
+ENV MONIKER=cintara-unified-node
+ENV LLAMA_HOST=0.0.0.0
+ENV LLAMA_PORT=8000
+ENV BRIDGE_PORT=8080
+
+# Install all dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    jq \
+    bash \
+    wget \
+    unzip \
+    build-essential \
+    git \
+    sudo \
+    expect \
+    coreutils \
+    python3 \
+    python3-pip \
+    python3-venv \
+    supervisor \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create cintara user with sudo privileges
+RUN useradd -ms /bin/bash cintara && \
+    echo "cintara ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+
+# Create data directories
+RUN mkdir -p /data /home/cintara/data /app /models && \
+    chown -R cintara:cintara /data /home/cintara/data /app /models
+
+# Switch to cintara user for node setup
+USER cintara
+WORKDIR /home/cintara
+
+# Clone the official cintara-testnet-script repository
+RUN git clone https://github.com/Cintaraio/cintara-testnet-script.git
+WORKDIR /home/cintara/cintara-testnet-script
+RUN chmod +x cintara_ubuntu_node.sh
+
+# Switch back to root for system-wide installations
+USER root
+
+# Download and install llama.cpp server
+RUN wget -O /tmp/llama-cpp.tar.gz https://github.com/ggerganov/llama.cpp/releases/latest/download/llama-b3259-bin-ubuntu-x64.zip && \
+    cd /tmp && \
+    unzip llama-cpp.tar.gz && \
+    mv llama-* /opt/llama.cpp && \
+    chmod +x /opt/llama.cpp/server && \
+    ln -s /opt/llama.cpp/server /usr/local/bin/llama-server
+
+# Download TinyLlama model
+RUN cd /models && \
+    wget -O tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf \
+    "https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF/resolve/main/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf"
+
+# Setup Python environment for AI bridge
+WORKDIR /app
+RUN python3 -m venv venv && \
+    . venv/bin/activate && \
+    pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir \
+        fastapi==0.104.1 \
+        uvicorn[standard]==0.24.0 \
+        requests==2.31.0 \
+        pydantic==2.5.0
+
+# Copy AI bridge application
+COPY bridge/app.py /app/app.py
+
+# Copy cintara node initialization scripts and configuration
+COPY cintara-node/automated-setup.sh /home/cintara/automated-setup.sh
+COPY cintara-node/node-config.env /home/cintara/node-config.env
+COPY cintara-node/init-node.sh /home/cintara/init-node.sh
+COPY cintara-node/entrypoint.sh /tmp/cintara-entrypoint.sh
+
+# Create unified entrypoint and supervisor config
+COPY <<'EOF' /etc/supervisor/conf.d/supervisord.conf
+[supervisord]
+nodaemon=true
+user=root
+logfile=/var/log/supervisor/supervisord.log
+pidfile=/var/run/supervisord.pid
+
+[program:cintara-node]
+command=/home/cintara/automated-setup.sh
+user=cintara
+directory=/home/cintara
+environment=MONIKER="%(ENV_MONIKER)s",CHAIN_ID="%(ENV_CHAIN_ID)s",OVERWRITE_CONFIG="y",AUTO_START="true"
+autostart=true
+autorestart=true
+stderr_logfile=/var/log/supervisor/cintara-node.err.log
+stdout_logfile=/var/log/supervisor/cintara-node.out.log
+
+[program:llama-server]
+command=/usr/local/bin/llama-server --model /models/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf --ctx-size 1024 --threads 4 --host 0.0.0.0 --port 8000 --n-predict 256 --verbose
+user=cintara
+directory=/models
+autostart=true
+autorestart=true
+stderr_logfile=/var/log/supervisor/llama-server.err.log
+stdout_logfile=/var/log/supervisor/llama-server.out.log
+
+[program:ai-bridge]
+command=/app/venv/bin/uvicorn app:app --host 0.0.0.0 --port 8080 --workers 1 --log-level info
+user=cintara
+directory=/app
+environment=LLAMA_SERVER_URL="http://localhost:8000",CINTARA_NODE_URL="http://localhost:26657",LOG_PATH="/app/logs",AI_FEATURES_ENABLED="true"
+autostart=true
+autorestart=true
+stderr_logfile=/var/log/supervisor/ai-bridge.err.log
+stdout_logfile=/var/log/supervisor/ai-bridge.out.log
+EOF
+
+# Create unified startup script
+COPY <<'EOF' /unified-entrypoint.sh
+#!/bin/bash
+set -e
+
+echo "🚀 Starting Cintara Unified Node..."
+
+# Create log directories
+mkdir -p /var/log/supervisor /app/logs
+chown -R cintara:cintara /var/log/supervisor /app/logs
+
+# Ensure all permissions are correct
+chown -R cintara:cintara /data /home/cintara/data /models /app
+chmod +x /home/cintara/init-node.sh /tmp/cintara-entrypoint.sh
+
+echo "📊 Starting all services with supervisor..."
+exec /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf
+EOF
+
+RUN chmod +x /unified-entrypoint.sh /home/cintara/init-node.sh /home/cintara/automated-setup.sh /tmp/cintara-entrypoint.sh
+
+# Create health check script
+COPY <<'EOF' /health-check.sh
+#!/bin/bash
+# Check all three services
+curl -sf http://localhost:26657/status > /dev/null && \
+curl -sf http://localhost:8000/health > /dev/null && \
+curl -sf http://localhost:8080/health > /dev/null
+EOF
+
+RUN chmod +x /health-check.sh
+
+# Set ownership
+RUN chown -R cintara:cintara /home/cintara /app /models
+
+# Expose all required ports
+EXPOSE 26656 26657 1317 9090 8000 8080
+
+# Health check
+HEALTHCHECK --interval=60s --timeout=30s --start-period=180s --retries=3 \
+    CMD /health-check.sh
+
+# Start all services
+CMD ["/unified-entrypoint.sh"]

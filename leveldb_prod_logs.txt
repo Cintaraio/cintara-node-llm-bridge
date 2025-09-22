@@ -1,0 +1,31 @@
+root@ip-172-31-32-239:/home/ubuntu/cintara-node-llm-bridge#   docker-compose logs -f | grep -E "(LevelDB|PRODUCTION|✅|❌)"
+cintara-ai-bridge  | INFO:app:💾 Fetching transactions using production LevelDB integration...
+cintara-ai-bridge  | INFO:taxbit_service:🎯 PRODUCTION MODE: Using LevelDB directly, skipping PostgreSQL
+cintara-ai-bridge  | INFO:taxbit_service:🔍 PRODUCTION LEVELDB SEARCH for address: 0x400D4A7c9Df0b8f438e819b91f7D76B4Ed27cE1C
+cintara-ai-bridge  | INFO:taxbit_service:Trying LevelDB path: /data/.tmp-cintarad/data/tx_index.db
+cintara-ai-bridge  | WARNING:taxbit_service:LevelDB path does not exist: /data/.tmp-cintarad/data/tx_index.db
+cintara-ai-bridge  | INFO:taxbit_service:Trying LevelDB path: /home/ubuntu/.cintarad/data/tx_index.db
+cintara-ai-bridge  | WARNING:taxbit_service:LevelDB path does not exist: /home/ubuntu/.cintarad/data/tx_index.db
+cintara-ai-bridge  | INFO:taxbit_service:Trying LevelDB path: ./data/tx_index.db
+cintara-ai-bridge  | WARNING:taxbit_service:LevelDB path does not exist: ./data/tx_index.db
+cintara-ai-bridge  | INFO:taxbit_service:Trying LevelDB path: /app/data/tx_index.db
+cintara-ai-bridge  | WARNING:taxbit_service:LevelDB path does not exist: /app/data/tx_index.db
+cintara-ai-bridge  | ERROR:taxbit_service:❌ Could not access any LevelDB path for tx_index
+cintara-ai-bridge  | ERROR:taxbit_service:❌ Cannot access LevelDB - database connection failed
+cintara-ai-bridge  | WARNING:taxbit_service:❌ No transactions found in LevelDB - this may indicate search issues
+cintara-ai-bridge  | INFO:taxbit_service:EVM RPC method disabled - using LevelDB only for production data
+cintara-ai-bridge  | INFO:app:💾 Fetching transactions using production LevelDB integration...
+cintara-ai-bridge  | INFO:taxbit_service:🎯 PRODUCTION MODE: Using LevelDB directly, skipping PostgreSQL
+cintara-ai-bridge  | INFO:taxbit_service:🔍 PRODUCTION LEVELDB SEARCH for address: 0x400D4A7c9Df0b8f438e819b91f7D76B4Ed27cE1C
+cintara-ai-bridge  | INFO:taxbit_service:Trying LevelDB path: /data/.tmp-cintarad/data/tx_index.db
+cintara-ai-bridge  | WARNING:taxbit_service:LevelDB path does not exist: /data/.tmp-cintarad/data/tx_index.db
+cintara-ai-bridge  | INFO:taxbit_service:Trying LevelDB path: /home/ubuntu/.cintarad/data/tx_index.db
+cintara-ai-bridge  | WARNING:taxbit_service:LevelDB path does not exist: /home/ubuntu/.cintarad/data/tx_index.db
+cintara-ai-bridge  | INFO:taxbit_service:Trying LevelDB path: ./data/tx_index.db
+cintara-ai-bridge  | WARNING:taxbit_service:LevelDB path does not exist: ./data/tx_index.db
+cintara-ai-bridge  | INFO:taxbit_service:Trying LevelDB path: /app/data/tx_index.db
+cintara-ai-bridge  | WARNING:taxbit_service:LevelDB path does not exist: /app/data/tx_index.db
+cintara-ai-bridge  | ERROR:taxbit_service:❌ Could not access any LevelDB path for tx_index
+cintara-ai-bridge  | ERROR:taxbit_service:❌ Cannot access LevelDB - database connection failed
+cintara-ai-bridge  | WARNING:taxbit_service:❌ No transactions found in LevelDB - this may indicate search issues
+cintara-ai-bridge  | INFO:taxbit_service:EVM RPC method disabled - using LevelDB only for production data

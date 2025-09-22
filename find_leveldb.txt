@@ -1,0 +1,61 @@
+root@ip-172-31-32-239:/home/ubuntu/cintara-node-llm-bridge# sudo sh ./find_leveldb.sh
+🔍 Searching for Cintara LevelDB databases...
+================================================
+Checking common Cintara database locations:
+
+✅ FOUND: Official tmp path
+   Path: /data/.tmp-cintarad/data
+   Size: 4.7G
+   Files: 13
+   Content: drwx------ 11 root root  4096 Sep 21 15:52 .
+drwxr-xr-x  5 root root  4096 Sep  5 17:45 ..
+
+✅ FOUND: Home directory
+   Path: /home/ubuntu/.cintarad/data
+   Size: 4.0K
+   Files: 3
+   Content: drwxr-xr-x 2 root   root   4096 Sep 22 05:59 .
+drwxrwxr-x 4 ubuntu ubuntu 4096 Sep 22 05:59 ..
+
+❌ NOT FOUND: System directory (/var/lib/cintara/data)
+❌ NOT FOUND: Opt directory (/opt/cintara/data)
+❌ NOT FOUND: Current directory (/home/ubuntu/cintara-node-llm-bridge/data)
+🔍 Searching entire system for LevelDB files...
+===============================================
+Looking for tx_index.db:
+✅ FOUND: tx_index.db
+   Path: /data/.tmp-cintarad/data/tx_index.db
+   Size: 1.6G
+   Files: 848
+   Content: drwxr-xr-x  2 root root   36864 Sep 22 05:26 .
+drwx------ 11 root root    4096 Sep 21 15:52 ..
+
+Looking for large 'data' directories (>100MB):
+✅ FOUND: Large data dir (4924MB)
+   Path: /data
+   Size: 4.9G
+   Files: 4
+   Content: drwxr-xr-x  3 root root 4096 Sep  5 17:43 .
+drwxr-xr-x 20 root root 4096 Sep 22 02:33 ..
+
+✅ FOUND: Large data dir (4771MB)
+   Path: /data/.tmp-cintarad/data
+   Size: 4.7G
+   Files: 13
+   Content: drwx------ 11 root root  4096 Sep 21 15:52 .
+drwxr-xr-x  5 root root  4096 Sep  5 17:45 ..
+
+🔍 Checking Cintara node status...
+=================================
+✅ Cintara process is running
+Process info:
+root        2502  7.2  3.5 2565124 281232 ?      Sl   02:38  15:38 cintarad start --home /data/.tmp-cintarad/
+
+Testing node API endpoints:
+✅ Node API accessible at localhost:26657
+   Latest block: 1474518
+
+🎯 Summary:
+==========
+Run this script on your EC2 instance to find the actual LevelDB location.
+Then update the docker-compose.yml volumes section accordingly.

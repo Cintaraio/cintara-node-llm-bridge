@@ -1,0 +1,231 @@
+FROM ubuntu:22.04
+
+# Set environment variables
+ENV DEBIAN_FRONTEND=noninteractive
+ENV CHAIN_ID=cintara_11001-1
+ENV MONIKER=cintara-unified-node
+ENV LLAMA_HOST=0.0.0.0
+ENV LLAMA_PORT=8000
+ENV BRIDGE_PORT=8080
+ENV OVERWRITE_CONFIG=y
+ENV AUTO_START=true
+
+# Install all dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    jq \
+    bash \
+    wget \
+    unzip \
+    build-essential \
+    git \
+    sudo \
+    expect \
+    coreutils \
+    python3 \
+    python3-pip \
+    python3-venv \
+    supervisor \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create cintara user with sudo privileges
+RUN useradd -ms /bin/bash cintara && \
+    echo "cintara ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+
+# Create data directories
+RUN mkdir -p /data /home/cintara/data /app /models && \
+    chown -R cintara:cintara /data /home/cintara/data /app /models
+
+# Switch to cintara user for setup
+USER cintara
+WORKDIR /home/cintara
+
+# Clone the official cintara-testnet-script repository
+RUN git clone https://github.com/Cintaraio/cintara-testnet-script.git
+WORKDIR /home/cintara/cintara-testnet-script
+
+# Copy our automated setup configuration
+COPY cintara-node/node-config.env /home/cintara/node-config.env
+
+# Switch back to root for system installations
+USER root
+
+# Download and install llama.cpp server
+RUN wget -q -O /tmp/llama-cpp.zip \
+    "https://github.com/ggerganov/llama.cpp/releases/download/b3259/llama-b3259-bin-ubuntu-x64.zip" && \
+    cd /tmp && \
+    unzip -q llama-cpp.zip && \
+    find . -name "server" -type f -executable -exec mv {} /usr/local/bin/llama-server \; && \
+    chmod +x /usr/local/bin/llama-server && \
+    rm -rf /tmp/llama-cpp.zip
+
+# Download TinyLlama model
+RUN cd /models && \
+    wget -q -O tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf \
+    "https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF/resolve/main/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf"
+
+# Setup Python environment for AI bridge
+WORKDIR /app
+RUN python3 -m venv venv && \
+    . venv/bin/activate && \
+    pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir \
+        fastapi==0.104.1 \
+        uvicorn[standard]==0.24.0 \
+        requests==2.31.0 \
+        pydantic==2.5.0
+
+# Copy AI bridge application
+COPY bridge/app.py /app/app.py
+
+# Set up Cintara node during build time
+WORKDIR /home/cintara/cintara-testnet-script
+
+# Copy automated setup script
+COPY cintara-node/automated-setup.sh /tmp/automated-setup.sh
+RUN chmod +x /tmp/automated-setup.sh
+
+# Run the automated setup during build time
+RUN chown -R cintara:cintara /home/cintara /data && \
+    su - cintara -c "source /home/cintara/node-config.env && cd /home/cintara/cintara-testnet-script && \
+    timeout 600 bash -c 'printf \"%s\\n%s\\n\" \"$MONIKER\" \"$OVERWRITE_CONFIG\" | ./cintara_ubuntu_node.sh' || \
+    echo 'Setup will be completed at runtime'"
+
+# Create runtime startup script for cintara node
+COPY <<'EOF' /start-cintara.sh
+#!/bin/bash
+set -e
+
+# Load configuration
+source /home/cintara/node-config.env
+
+echo "🚀 Starting Cintara Node..."
+echo "Configuration: $MONIKER on $CHAIN_ID"
+
+# Ensure directories exist
+mkdir -p /data/.tmp-cintarad
+chown -R cintara:cintara /data
+
+# Check if node is already configured
+if [ ! -f "/data/.tmp-cintarad/config/genesis.json" ] || [ ! -f "/data/.tmp-cintarad/config/config.toml" ]; then
+    echo "📦 Node not configured, running setup..."
+    cd /home/cintara/cintara-testnet-script
+
+    # Try automated setup
+    printf "%s\n%s\n" "$MONIKER" "$OVERWRITE_CONFIG" | timeout 300 ./cintara_ubuntu_node.sh || {
+        echo "❌ Setup failed, but continuing with manual configuration..."
+
+        # Ensure basic structure exists
+        mkdir -p /data/.tmp-cintarad/config
+
+        # Check if cintarad is available
+        if command -v cintarad >/dev/null 2>&1; then
+            echo "✅ cintarad binary found, initializing manually..."
+            cintarad init "$MONIKER" --chain-id "$CHAIN_ID" --home /data/.tmp-cintarad || true
+
+            # Copy genesis if available
+            if [ -f "genesis.json" ]; then
+                cp genesis.json /data/.tmp-cintarad/config/ || true
+            fi
+        fi
+    }
+fi
+
+# Start the node if properly configured
+if command -v cintarad >/dev/null 2>&1 && [ -f "/data/.tmp-cintarad/config/config.toml" ]; then
+    echo "✅ Starting Cintara node..."
+    exec cintarad start --home /data/.tmp-cintarad \
+        --rpc.laddr tcp://0.0.0.0:26657 \
+        --grpc.address 0.0.0.0:9090 \
+        --api.address tcp://0.0.0.0:1317 \
+        --api.enable true \
+        --log_level info
+else
+    echo "❌ Node not properly configured. Keeping container running for manual setup."
+    echo "To setup manually:"
+    echo "  docker exec -it <container> bash"
+    echo "  cd /home/cintara/cintara-testnet-script"
+    echo "  ./cintara_ubuntu_node.sh"
+    tail -f /dev/null
+fi
+EOF
+
+RUN chmod +x /start-cintara.sh
+
+# Create supervisor configuration
+COPY <<'EOF' /etc/supervisor/conf.d/supervisord.conf
+[supervisord]
+nodaemon=true
+user=root
+logfile=/var/log/supervisor/supervisord.log
+pidfile=/var/run/supervisord.pid
+
+[program:cintara-node]
+command=/start-cintara.sh
+user=cintara
+directory=/home/cintara
+autostart=true
+autorestart=true
+stderr_logfile=/var/log/supervisor/cintara-node.err.log
+stdout_logfile=/var/log/supervisor/cintara-node.out.log
+
+[program:llama-server]
+command=/usr/local/bin/llama-server --model /models/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf --ctx-size 1024 --threads 4 --host 0.0.0.0 --port 8000 --n-predict 256 --verbose
+user=cintara
+directory=/models
+autostart=true
+autorestart=true
+stderr_logfile=/var/log/supervisor/llama-server.err.log
+stdout_logfile=/var/log/supervisor/llama-server.out.log
+
+[program:ai-bridge]
+command=/app/venv/bin/uvicorn app:app --host 0.0.0.0 --port 8080 --workers 1 --log-level info
+user=cintara
+directory=/app
+environment=LLAMA_SERVER_URL="http://localhost:8000",CINTARA_NODE_URL="http://localhost:26657",LOG_PATH="/app/logs",AI_FEATURES_ENABLED="true"
+autostart=true
+autorestart=true
+stderr_logfile=/var/log/supervisor/ai-bridge.err.log
+stdout_logfile=/var/log/supervisor/ai-bridge.out.log
+EOF
+
+# Create unified entrypoint
+COPY <<'EOF' /unified-entrypoint.sh
+#!/bin/bash
+set -e
+
+echo "🚀 Starting Cintara Unified Node..."
+
+# Create log directories
+mkdir -p /var/log/supervisor /app/logs
+chown -R cintara:cintara /var/log/supervisor /app/logs /data /home/cintara /models /app
+
+echo "📊 Starting all services with supervisor..."
+exec /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf
+EOF
+
+RUN chmod +x /unified-entrypoint.sh
+
+# Create health check script
+COPY <<'EOF' /health-check.sh
+#!/bin/bash
+# Check all three services with proper timeouts
+timeout 10 curl -sf http://localhost:26657/status > /dev/null && \
+timeout 10 curl -sf http://localhost:8000/health > /dev/null && \
+timeout 10 curl -sf http://localhost:8080/health > /dev/null
+EOF
+
+RUN chmod +x /health-check.sh
+
+# Set final ownership
+RUN chown -R cintara:cintara /home/cintara /app /models
+
+# Expose all required ports
+EXPOSE 26656 26657 1317 9090 8000 8080
+
+# Health check with longer startup time
+HEALTHCHECK --interval=60s --timeout=30s --start-period=300s --retries=3 \
+    CMD /health-check.sh
+
+# Start all services
+CMD ["/unified-entrypoint.sh"]
