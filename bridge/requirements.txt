@@ -3,3 +3,4 @@ uvicorn[standard]>=0.15.0
 pydantic>=1.8.0
 requests>=2.25.0
 python-multipart>=0.0.5
+plyvel>=1.3.0

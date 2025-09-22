@@ -38,13 +38,28 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Mount static files for the web UI
-app.mount("/static", StaticFiles(directory="static"), name="static")
+# Mount static files for the web UI (if directory exists)
+import os
+if os.path.exists("static"):
+    app.mount("/static", StaticFiles(directory="static"), name="static")
 
 @app.get("/")
 async def root():
     """Serve the main TaxBit web interface"""
-    return FileResponse("static/index.html")
+    if os.path.exists("static/index.html"):
+        return FileResponse("static/index.html")
+    else:
+        return {
+            "message": "🎯 Cintara TaxBit Service - Production LevelDB Integration",
+            "web_ui": "Web UI not available - static files missing",
+            "api_endpoints": {
+                "preview": "/taxbit/preview/{address}",
+                "export": "/taxbit/export/{address}",
+                "health": "/health",
+                "docs": "/docs"
+            },
+            "status": "API service running"
+        }
 
 # Pydantic models
 class TransactionRequest(BaseModel):

@@ -23,6 +23,9 @@ RUN groupadd -g 1001 bridge && \
 COPY app.py /app/app.py
 COPY taxbit_service.py /app/taxbit_service.py
 
+# Copy static files for web UI
+COPY static/ /app/static/
+
 # Set ownership and permissions
 RUN chown -R bridge:bridge /app
 
