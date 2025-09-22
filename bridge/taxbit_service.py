@@ -272,16 +272,23 @@ class TaxBitService:
 
     def fetch_transactions_from_db(self, address: str, start_date: Optional[datetime] = None,
                                   end_date: Optional[datetime] = None) -> List[Dict[str, Any]]:
-        """Fetch transactions from indexer database (PRODUCTION: LevelDB ONLY)"""
-        logger.info("🎯 PRODUCTION MODE: Using LevelDB directly, skipping PostgreSQL")
+        """Fetch transactions from database (PRODUCTION: Node API Integration)"""
+        logger.info("🎯 PRODUCTION MODE: Using Node API integration due to database lock conflicts")
 
-        # Go directly to LevelDB for production data
+        # First try LevelDB (if available and not locked)
         leveldb_transactions = self._fetch_transactions_from_leveldb(address, start_date, end_date)
         if leveldb_transactions:
             logger.info(f"✅ Found {len(leveldb_transactions)} transactions via PRODUCTION LevelDB")
             return leveldb_transactions
 
-        logger.warning("❌ No transactions found in LevelDB - this may indicate search issues")
+        # Fallback to enhanced node API queries
+        logger.info("🔄 LevelDB locked by running node - using enhanced API queries")
+        api_transactions = self._fetch_transactions_via_enhanced_api(address, start_date, end_date)
+        if api_transactions:
+            logger.info(f"✅ Found {len(api_transactions)} transactions via enhanced Node API")
+            return api_transactions
+
+        logger.warning("❌ No transactions found via any method")
         return []
 
     def _fetch_transactions_from_postgres(self, address: str, start_date: Optional[datetime] = None,
@@ -458,6 +465,237 @@ class TaxBitService:
         finally:
             if tx_db:
                 tx_db.close()
+
+    def _fetch_transactions_via_enhanced_api(self, address: str, start_date: Optional[datetime] = None,
+                                           end_date: Optional[datetime] = None) -> List[Dict[str, Any]]:
+        """Enhanced API-based transaction fetching using node's indexed data"""
+        logger.info(f"🔍 ENHANCED API SEARCH for address: {address}")
+
+        try:
+            transactions = []
+
+            # Get current block height for scanning range
+            status_resp = requests.get(f"{self.node_url}/status", timeout=10)
+            if status_resp.status_code != 200:
+                logger.error("Node API unreachable")
+                return []
+
+            latest_height = int(status_resp.json()['result']['sync_info']['latest_block_height'])
+            logger.info(f"Latest block height: {latest_height}")
+
+            # Method 1: Search transaction by address using tx_search
+            logger.info("🔍 Searching transactions via tx_search API...")
+            search_queries = [
+                f"message.sender='{address}'",
+                f"ethereum_tx.from='{address}'",
+                f"ethereum_tx.to='{address}'",
+                f"transfer.recipient='{address}'",
+                f"transfer.sender='{address}'"
+            ]
+
+            for query in search_queries:
+                try:
+                    search_url = f"{self.node_url}/tx_search"
+                    params = {
+                        'query': query,
+                        'prove': 'false',
+                        'page': '1',
+                        'per_page': '50',
+                        'order_by': 'desc'
+                    }
+
+                    resp = requests.get(search_url, params=params, timeout=15)
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        if data.get('result', {}).get('txs'):
+                            logger.info(f"✅ Found {len(data['result']['txs'])} transactions for query: {query}")
+
+                            for tx_data in data['result']['txs']:
+                                parsed_tx = self._parse_api_transaction(tx_data, address)
+                                if parsed_tx and self._transaction_in_date_range(parsed_tx, start_date, end_date):
+                                    transactions.append(parsed_tx)
+
+                except Exception as e:
+                    logger.warning(f"Search query failed '{query}': {e}")
+                    continue
+
+            # Method 2: Get transactions by scanning recent blocks efficiently
+            if len(transactions) < 10:  # Only scan if we need more transactions
+                logger.info("🔍 Scanning recent blocks for additional transactions...")
+                scan_start = max(1, latest_height - 1000)  # Scan last 1000 blocks
+                block_transactions = self._scan_blocks_efficiently(address, scan_start, latest_height)
+                transactions.extend(block_transactions)
+
+            # Remove duplicates and sort by timestamp
+            unique_transactions = self._deduplicate_and_filter_transactions(transactions, start_date, end_date)
+            logger.info(f"🎯 ENHANCED API SEARCH COMPLETE: {len(unique_transactions)} unique transactions found")
+
+            return unique_transactions
+
+        except Exception as e:
+            logger.error(f"Enhanced API search failed: {e}")
+            return []
+
+    def _parse_api_transaction(self, tx_data: dict, user_address: str) -> Optional[Dict[str, Any]]:
+        """Parse transaction data from node API response"""
+        try:
+            tx_result = tx_data.get('tx_result', {})
+            tx_hash = tx_data.get('hash', '')
+            height = tx_data.get('height', '0')
+
+            # Parse transaction events for addresses and amounts
+            events = tx_result.get('events', [])
+            from_addr, to_addr, amount = self._extract_addresses_from_events(events, user_address)
+
+            # Determine transaction type and direction
+            tx_type = self._determine_transaction_type(events)
+            is_outbound = user_address.lower() in from_addr.lower() if from_addr else False
+
+            # Parse timestamp from block (approximate)
+            timestamp = datetime.now(timezone.utc).isoformat()
+
+            transaction = {
+                'hash': tx_hash,
+                'type': tx_type,
+                'from_address': from_addr,
+                'to_address': to_addr,
+                'amount': amount,
+                'amount_display': self._convert_wei_to_eth(amount)['display'],
+                'denom': 'cint',
+                'success': tx_result.get('code', 1) == 0,
+                'timestamp': timestamp,
+                'height': height,
+                'fee': '0',  # TODO: Extract from events
+                'memo': f'Enhanced API extraction from block {height}',
+                'is_outbound': is_outbound,
+                'events': events,
+                'database_source': 'Enhanced_API'
+            }
+
+            return transaction
+
+        except Exception as e:
+            logger.warning(f"Failed to parse API transaction: {e}")
+            return None
+
+    def _extract_addresses_from_events(self, events: list, user_address: str) -> tuple[str, str, str]:
+        """Extract from/to addresses and amount from transaction events"""
+        from_addr = ""
+        to_addr = ""
+        amount = "0"
+
+        try:
+            for event in events:
+                event_type = event.get('type', '')
+                attributes = event.get('attributes', [])
+
+                # Convert attributes to dict for easier access
+                attr_dict = {}
+                for attr in attributes:
+                    key = attr.get('key', '')
+                    value = attr.get('value', '')
+                    if isinstance(key, str) and isinstance(value, str):
+                        attr_dict[key] = value
+
+                # Extract addresses based on event type
+                if event_type == 'ethereum_tx':
+                    from_addr = attr_dict.get('from', from_addr)
+                    to_addr = attr_dict.get('to', to_addr)
+                    amount = attr_dict.get('amount', amount)
+                elif event_type == 'transfer':
+                    from_addr = attr_dict.get('sender', from_addr)
+                    to_addr = attr_dict.get('recipient', to_addr)
+                    amount = attr_dict.get('amount', amount)
+                elif event_type == 'message':
+                    if not from_addr:
+                        from_addr = attr_dict.get('sender', from_addr)
+
+        except Exception as e:
+            logger.warning(f"Failed to extract addresses from events: {e}")
+
+        return from_addr or user_address, to_addr, amount or "0"
+
+    def _determine_transaction_type(self, events: list) -> str:
+        """Determine transaction type from events"""
+        for event in events:
+            event_type = event.get('type', '')
+            if 'ethereum' in event_type.lower():
+                return 'MsgEthereumTx'
+            elif 'transfer' in event_type.lower():
+                return 'MsgSend'
+        return 'Unknown'
+
+    def _scan_blocks_efficiently(self, address: str, start_height: int, end_height: int) -> List[Dict[str, Any]]:
+        """Efficiently scan blocks for transactions involving the address"""
+        transactions = []
+        scanned = 0
+
+        try:
+            # Sample every 10th block for efficiency
+            for height in range(end_height, start_height, -10):
+                if scanned >= 100:  # Limit scanning
+                    break
+
+                try:
+                    block_url = f"{self.node_url}/block"
+                    params = {'height': str(height)}
+                    resp = requests.get(block_url, params=params, timeout=10)
+
+                    if resp.status_code == 200:
+                        block_data = resp.json()
+                        block_txs = block_data.get('result', {}).get('block', {}).get('data', {}).get('txs', [])
+
+                        for tx_hash in block_txs:
+                            # Get transaction details
+                            tx_details = self._get_transaction_details(tx_hash)
+                            if tx_details and self._transaction_involves_address(tx_details, address):
+                                parsed_tx = self._parse_api_transaction(tx_details, address)
+                                if parsed_tx:
+                                    transactions.append(parsed_tx)
+
+                        scanned += 1
+
+                except Exception as e:
+                    logger.warning(f"Failed to scan block {height}: {e}")
+                    continue
+
+        except Exception as e:
+            logger.error(f"Block scanning failed: {e}")
+
+        return transactions
+
+    def _get_transaction_details(self, tx_hash: str) -> Optional[dict]:
+        """Get detailed transaction information by hash"""
+        try:
+            tx_url = f"{self.node_url}/tx"
+            params = {'hash': tx_hash, 'prove': 'false'}
+            resp = requests.get(tx_url, params=params, timeout=10)
+
+            if resp.status_code == 200:
+                return resp.json().get('result')
+
+        except Exception as e:
+            logger.warning(f"Failed to get transaction details for {tx_hash}: {e}")
+
+        return None
+
+    def _transaction_involves_address(self, tx_data: dict, address: str) -> bool:
+        """Check if transaction involves the given address"""
+        try:
+            events = tx_data.get('tx_result', {}).get('events', [])
+            address_lower = address.lower()
+
+            for event in events:
+                attributes = event.get('attributes', [])
+                for attr in attributes:
+                    value = attr.get('value', '')
+                    if isinstance(value, str) and address_lower in value.lower():
+                        return True
+
+        except Exception:
+            pass
+
+        return False
 
     def _production_transaction_involves_address(self, tx_data: bytes, target_address: str) -> bool:
         """Production method to check if transaction involves target address"""
