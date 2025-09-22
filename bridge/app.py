@@ -110,6 +110,61 @@ def health():
         "timestamp": datetime.utcnow().isoformat()
     }
 
+@app.get("/debug/leveldb")
+async def debug_leveldb():
+    """Debug endpoint to check LevelDB accessibility"""
+    import os
+
+    try:
+        import plyvel
+        PLYVEL_AVAILABLE = True
+    except ImportError:
+        PLYVEL_AVAILABLE = False
+
+    debug_info = {
+        "plyvel_available": PLYVEL_AVAILABLE,
+        "paths_checked": [],
+        "accessible_paths": [],
+        "directory_contents": {}
+    }
+
+    # Check all possible LevelDB paths
+    paths_to_check = [
+        '/data/tx_index_readonly.db',
+        '/data/.tmp-cintarad/data/tx_index_readonly.db',
+        '/data/tx_index.db',
+        '/data/.tmp-cintarad/data/tx_index.db',
+        '/data',
+        '/data/.tmp-cintarad',
+        '/data/.tmp-cintarad/data'
+    ]
+
+    for path in paths_to_check:
+        debug_info["paths_checked"].append(path)
+
+        if os.path.exists(path):
+            debug_info["accessible_paths"].append(path)
+
+            try:
+                if os.path.isdir(path):
+                    contents = os.listdir(path)
+                    debug_info["directory_contents"][path] = {
+                        "type": "directory",
+                        "contents": contents,
+                        "permissions": oct(os.stat(path).st_mode)[-3:],
+                        "size": len(contents)
+                    }
+                else:
+                    debug_info["directory_contents"][path] = {
+                        "type": "file",
+                        "size": os.path.getsize(path),
+                        "permissions": oct(os.stat(path).st_mode)[-3:]
+                    }
+            except Exception as e:
+                debug_info["directory_contents"][path] = {"error": str(e)}
+
+    return debug_info
+
 @app.get("/node/status")
 def get_node_status():
     """Get detailed blockchain node status"""
