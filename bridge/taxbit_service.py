@@ -182,6 +182,7 @@ class TaxBitService:
         # LevelDB paths from analysis - try multiple possible locations
         self.leveldb_paths = {
             'tx_index': [
+                '/data/tx_index.db',  # Direct mount path
                 '/data/.tmp-cintarad/data/tx_index.db',
                 '/home/ubuntu/.cintarad/data/tx_index.db',
                 './data/tx_index.db',
