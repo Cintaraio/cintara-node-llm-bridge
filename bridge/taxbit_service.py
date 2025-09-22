@@ -485,12 +485,48 @@ class TaxBitService:
 
             # Method 1: Search transaction by address using tx_search
             logger.info("🔍 Searching transactions via tx_search API...")
+
+            # First, test what search capabilities are available
+            test_queries = [
+                "message.action='/ethermint.evm.v1.MsgEthereumTx'",
+                "tx.height > 1",
+                "message.action EXISTS"
+            ]
+
+            for test_query in test_queries:
+                try:
+                    search_url = f"{self.node_url}/tx_search"
+                    params = {
+                        'query': test_query,
+                        'prove': 'false',
+                        'page': '1',
+                        'per_page': '5'
+                    }
+                    resp = requests.get(search_url, params=params, timeout=10)
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        total = data.get('result', {}).get('total_count', 0)
+                        logger.info(f"🔍 Test query '{test_query}': {total} results")
+                except Exception as e:
+                    logger.warning(f"Test query failed '{test_query}': {e}")
+
+            # Now try various search patterns for the target address
             search_queries = [
                 f"message.sender='{address}'",
                 f"ethereum_tx.from='{address}'",
                 f"ethereum_tx.to='{address}'",
                 f"transfer.recipient='{address}'",
-                f"transfer.sender='{address}'"
+                f"transfer.sender='{address}'",
+                # Try without quotes
+                f"message.sender={address}",
+                f"ethereum_tx.from={address}",
+                f"ethereum_tx.to={address}",
+                # Try case variations
+                f"message.sender='{address.upper()}'",
+                f"message.sender='{address.lower()}'",
+                # Try searching in event attributes
+                f"ethereum_tx.hash EXISTS",  # Get any EVM transactions
+                "message.action='/ethermint.evm.v1.MsgEthereumTx'"  # Get all EVM transactions
             ]
 
             for query in search_queries:
@@ -504,16 +540,30 @@ class TaxBitService:
                         'order_by': 'desc'
                     }
 
+                    logger.info(f"🔍 Trying search query: {query}")
                     resp = requests.get(search_url, params=params, timeout=15)
                     if resp.status_code == 200:
                         data = resp.json()
-                        if data.get('result', {}).get('txs'):
-                            logger.info(f"✅ Found {len(data['result']['txs'])} transactions for query: {query}")
+                        total_count = data.get('result', {}).get('total_count', 0)
+                        txs = data.get('result', {}).get('txs', [])
 
-                            for tx_data in data['result']['txs']:
+                        logger.info(f"   Result: {total_count} total, {len(txs)} returned")
+
+                        if txs:
+                            # If this is a general query (getting all EVM txs), filter by address
+                            for tx_data in txs:
                                 parsed_tx = self._parse_api_transaction(tx_data, address)
-                                if parsed_tx and self._transaction_in_date_range(parsed_tx, start_date, end_date):
-                                    transactions.append(parsed_tx)
+                                if parsed_tx:
+                                    # Check if this transaction actually involves our address
+                                    if (address.lower() in parsed_tx.get('from_address', '').lower() or
+                                        address.lower() in parsed_tx.get('to_address', '').lower() or
+                                        query.startswith("message.action") or query.startswith("ethereum_tx.hash")):
+
+                                        if self._transaction_in_date_range(parsed_tx, start_date, end_date):
+                                            transactions.append(parsed_tx)
+                                            logger.info(f"   ✅ Added transaction: {parsed_tx['hash'][:16]}...")
+                    else:
+                        logger.warning(f"   Query failed with status {resp.status_code}: {query}")
 
                 except Exception as e:
                     logger.warning(f"Search query failed '{query}': {e}")
