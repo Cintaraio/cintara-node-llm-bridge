@@ -375,16 +375,16 @@ class TaxBitService:
                             logger.info(f"   Hash: {tx['hash'][:16]}... Amount: {tx.get('amount_display', '0 ETH')}")
 
                 # Progress and limits
-                if len(transactions) >= 100:  # Reasonable limit for web UI
-                    logger.info(f"Reached limit of 100 transactions")
+                if len(transactions) >= 50:  # Reasonable limit for web UI
+                    logger.info(f"Reached limit of 50 transactions")
                     break
 
-                if scanned_count >= 5000:  # Prevent timeout in web context
+                if scanned_count >= 10000:  # Increase scan limit for better coverage
                     logger.info(f"Scanned {scanned_count} records, stopping for performance")
                     break
 
                 # Progress logging
-                if scanned_count % 500 == 0:
+                if scanned_count % 1000 == 0:
                     logger.info(f"Progress: {scanned_count} scanned, {len(transactions)} found")
 
             logger.info(f"🎯 LEVELDB SEARCH COMPLETE: {len(transactions)} transactions found")
@@ -405,12 +405,19 @@ class TaxBitService:
 
             # Multiple search strategies based on analysis
             search_methods = [
-                # Direct hex search
+                # Direct hex search (most common)
                 target_clean in tx_hex,
                 # Address in raw bytes
                 bytes.fromhex(target_clean) in tx_data if len(target_clean) == 40 else False,
-                # Address with common prefixes
-                f"08{target_clean[:8]}" in tx_hex,  # Common pattern from analysis
+                # Address with common prefixes from protobuf
+                f"08{target_clean[:8]}" in tx_hex,
+                f"12{target_clean[:8]}" in tx_hex,
+                # Address in reversed byte order (little endian)
+                target_clean[::-1] in tx_hex,
+                # Look for partial matches (first 8 bytes)
+                target_clean[:16] in tx_hex,
+                # Check with 0x prefix encoded
+                f"307800{target_clean}" in tx_hex,  # "0x" + address encoded
             ]
 
             return any(search_methods)
@@ -479,19 +486,49 @@ class TaxBitService:
 
             # Filter valid addresses (not all zeros, not protobuf indicators)
             valid_addresses = []
+            excluded_patterns = ['65766d', '657468', '6d7367', '000000', 'ffffff']
+
             for addr in potential_addresses:
+                addr_lower = addr.lower()
+                # Skip addresses that are all zeros, all F's, or contain protobuf patterns
                 if (not all(c == '0' for c in addr) and
-                    not any(pattern in addr.lower() for pattern in ['65766d', '657468', '6d7367'])):  # Avoid protobuf
+                    not all(c in 'f' for c in addr_lower) and
+                    not any(pattern in addr_lower for pattern in excluded_patterns) and
+                    len(set(addr_lower)) > 3):  # Ensure some variety in hex chars
                     valid_addresses.append(f"0x{addr}")
+
+            # Remove duplicates while preserving order
+            seen = set()
+            unique_addresses = []
+            for addr in valid_addresses:
+                if addr.lower() not in seen:
+                    seen.add(addr.lower())
+                    unique_addresses.append(addr)
 
             # If user address is found, use it appropriately
             user_full = f"0x{user_clean}"
-            if user_full in valid_addresses:
-                other_addresses = [addr for addr in valid_addresses if addr != user_full]
-                if other_addresses:
-                    return user_full, other_addresses[0]
+            user_variations = [user_full, user_address.lower(), user_address.upper()]
+
+            matching_user = None
+            other_addresses = []
+
+            for addr in unique_addresses:
+                if addr.lower() in [v.lower() for v in user_variations]:
+                    matching_user = addr
                 else:
-                    return user_full, ""
+                    other_addresses.append(addr)
+
+            # Return user address and best other address
+            if matching_user and other_addresses:
+                return matching_user, other_addresses[0]
+            elif matching_user:
+                return matching_user, ""
+            elif other_addresses:
+                # If user address not found but we have others, assume first is from, second is to
+                if len(other_addresses) >= 2:
+                    return other_addresses[0], other_addresses[1]
+                else:
+                    return other_addresses[0], ""
 
             # Return best guesses
             if len(valid_addresses) >= 2:
@@ -1424,55 +1461,9 @@ class TaxBitService:
         return transactions
 
     def _fetch_evm_transactions_via_rpc(self, address: str) -> List[Dict[str, Any]]:
-        """Fetch EVM transactions using JSON-RPC endpoint"""
-        transactions = []
-
-        try:
-            logger.info(f"Fetching EVM transactions via JSON-RPC for address: {address}")
-
-            # Use the working EVM JSON-RPC endpoint
-            evm_rpc_payload = {
-                "jsonrpc": "2.0",
-                "method": "eth_getTransactionCount",
-                "params": [address, "latest"],
-                "id": 1
-            }
-
-            response = requests.post(self.evm_rpc_url, json=evm_rpc_payload, timeout=10)
-            if response.status_code == 200:
-                data = response.json()
-                logger.info(f"EVM RPC response: {data}")
-
-                # Get transaction count (nonce)
-                nonce = data.get('result', '0x0')
-                if nonce != '0x0':
-                    tx_count = int(nonce, 16)
-                    logger.info(f"Address {address} has {tx_count} transactions")
-
-                    # For demonstration, create sample transaction entries
-                    # In production, you'd need to fetch actual transaction hashes
-                    for i in range(min(tx_count, 10)):  # Limit to 10 for demo
-                        tx_info = {
-                            'hash': f"evm_rpc_{address}_{i}",
-                            'height': '0',
-                            'timestamp': datetime.now(timezone.utc).isoformat(),
-                            'success': True,
-                            'type': 'MsgEthereumTx',
-                            'from_address': address,
-                            'to_address': '',
-                            'amount': '0',
-                            'denom': 'cint',
-                            'fee': '0',
-                            'memo': f'EVM transaction #{i} via JSON-RPC',
-                            'events': []
-                        }
-                        transactions.append(tx_info)
-
-            return transactions
-
-        except Exception as e:
-            logger.error(f"EVM JSON-RPC query failed: {e}")
-            return []
+        """Fetch EVM transactions using JSON-RPC endpoint - DISABLED FOR PRODUCTION LEVELDB"""
+        logger.info(f"EVM RPC method disabled - using LevelDB only for production data")
+        return []
 
     def _fetch_evm_transactions(self, address: str) -> List[Dict[str, Any]]:
         """Fetch transactions for Ethereum addresses (0x...)"""
