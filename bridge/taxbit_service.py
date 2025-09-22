@@ -240,19 +240,16 @@ class TaxBitService:
 
     def fetch_transactions_from_db(self, address: str, start_date: Optional[datetime] = None,
                                   end_date: Optional[datetime] = None) -> List[Dict[str, Any]]:
-        """Fetch transactions from indexer database (PostgreSQL or LevelDB)"""
-        # Try PostgreSQL first
-        postgres_transactions = self._fetch_transactions_from_postgres(address, start_date, end_date)
-        if postgres_transactions:
-            logger.info(f"Found {len(postgres_transactions)} transactions via PostgreSQL")
-            return postgres_transactions
+        """Fetch transactions from indexer database (PRODUCTION: LevelDB ONLY)"""
+        logger.info("🎯 PRODUCTION MODE: Using LevelDB directly, skipping PostgreSQL")
 
-        # Fallback to LevelDB
+        # Go directly to LevelDB for production data
         leveldb_transactions = self._fetch_transactions_from_leveldb(address, start_date, end_date)
         if leveldb_transactions:
-            logger.info(f"Found {len(leveldb_transactions)} transactions via LevelDB")
+            logger.info(f"✅ Found {len(leveldb_transactions)} transactions via PRODUCTION LevelDB")
             return leveldb_transactions
 
+        logger.warning("❌ No transactions found in LevelDB - this may indicate search issues")
         return []
 
     def _fetch_transactions_from_postgres(self, address: str, start_date: Optional[datetime] = None,
@@ -348,23 +345,48 @@ class TaxBitService:
         """Production LevelDB transaction extraction based on analysis results"""
         logger.info(f"🔍 PRODUCTION LEVELDB SEARCH for address: {address}")
 
+        # First check if LevelDB is accessible
         tx_db = self.get_leveldb_connection('tx_index')
         if not tx_db:
+            logger.error("❌ Cannot access LevelDB - database connection failed")
             return []
 
         try:
+            # Quick database diagnostics
+            logger.info("🔍 Running LevelDB diagnostics...")
+            sample_count = 0
+            sample_keys = []
+
+            # Sample first few records to verify database content
+            for key, value in tx_db:
+                sample_count += 1
+                sample_keys.append(key.hex()[:16])
+                if sample_count >= 5:
+                    break
+
+            logger.info(f"✅ LevelDB accessible: {sample_count} sample records found")
+            logger.info(f"   Sample keys: {sample_keys}")
+
+            if sample_count == 0:
+                logger.error("❌ LevelDB appears empty - no records found")
+                return []
+
+            # Now perform the actual search
             transactions = []
             scanned_count = 0
+            match_count = 0
             target_clean = address.lower().replace('0x', '')
 
-            logger.info(f"Scanning 1.6GB transaction database for {address}...")
+            logger.info(f"🔍 Scanning database for address: {address}")
+            logger.info(f"   Target pattern: {target_clean}")
 
             for key, value in tx_db:
                 scanned_count += 1
 
                 # Production search: check if transaction involves target address
                 if self._production_transaction_involves_address(value, address):
-                    logger.info(f"✅ FOUND MATCH #{len(transactions) + 1} (scanned {scanned_count})")
+                    match_count += 1
+                    logger.info(f"✅ FOUND MATCH #{match_count} (scanned {scanned_count})")
 
                     # Parse transaction with production method
                     tx = self._production_parse_leveldb_transaction(key, value, address)
@@ -373,25 +395,33 @@ class TaxBitService:
                         if self._transaction_in_date_range(tx, start_date, end_date):
                             transactions.append(tx)
                             logger.info(f"   Hash: {tx['hash'][:16]}... Amount: {tx.get('amount_display', '0 ETH')}")
+                            logger.info(f"   From: {tx.get('from_address', 'N/A')} To: {tx.get('to_address', 'N/A')}")
 
                 # Progress and limits
                 if len(transactions) >= 50:  # Reasonable limit for web UI
                     logger.info(f"Reached limit of 50 transactions")
                     break
 
-                if scanned_count >= 10000:  # Increase scan limit for better coverage
+                if scanned_count >= 15000:  # Increase scan limit for better coverage
                     logger.info(f"Scanned {scanned_count} records, stopping for performance")
                     break
 
                 # Progress logging
-                if scanned_count % 1000 == 0:
-                    logger.info(f"Progress: {scanned_count} scanned, {len(transactions)} found")
+                if scanned_count % 2000 == 0:
+                    logger.info(f"Progress: {scanned_count} scanned, {match_count} matches, {len(transactions)} valid transactions")
 
-            logger.info(f"🎯 LEVELDB SEARCH COMPLETE: {len(transactions)} transactions found")
+            logger.info(f"🎯 LEVELDB SEARCH COMPLETE: {len(transactions)} transactions found from {match_count} matches")
+
+            if len(transactions) == 0:
+                logger.warning(f"❌ No transactions found for {address} after scanning {scanned_count} records")
+                logger.warning("   This may indicate the address has no transactions or search patterns need adjustment")
+
             return transactions
 
         except Exception as e:
             logger.error(f"Production LevelDB search failed: {e}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
             return []
         finally:
             if tx_db:
