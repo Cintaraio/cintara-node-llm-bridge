@@ -1,9 +1,13 @@
 services:
   # Fully Automated Cintara Node with LLM and AI Bridge
   cintara-unified:
-    build:
-      context: .
-      dockerfile: Dockerfile.unified
+    # Use pre-built image from ECR
+    image: public.ecr.aws/b8j2u1c6/cintaraio/cintara-unified:latest
+
+    # Alternative: Build unified image with all components locally
+    # build:
+    #   context: .
+    #   dockerfile: Dockerfile.unified
     container_name: cintara-unified-automated
     restart: unless-stopped
     environment:
