@@ -27,9 +27,19 @@ install_docker() {
     if [[ "$OS" == *"Amazon Linux"* ]]; then
         echo "📦 Installing Docker on Amazon Linux..."
         yum update -y
-        amazon-linux-extras install docker -y
-        service docker start
-        chkconfig docker on
+
+        # Check if amazon-linux-extras is available (Amazon Linux 2)
+        if command -v amazon-linux-extras >/dev/null 2>&1; then
+            echo "Using amazon-linux-extras (Amazon Linux 2)"
+            amazon-linux-extras install docker -y
+            service docker start
+            chkconfig docker on
+        else
+            echo "Using dnf/yum (Amazon Linux 2023+)"
+            yum install -y docker
+            systemctl start docker
+            systemctl enable docker
+        fi
 
         # Install Docker Compose
         curl -L "https://github.com/docker/compose/releases/download/v2.24.1/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
@@ -63,7 +73,12 @@ install_docker() {
 install_aws_cli() {
     echo "📦 Installing AWS CLI..."
     if [[ "$OS" == *"Amazon Linux"* ]]; then
-        yum install -y awscli
+        # Try awscli2 first, fallback to awscli
+        if yum list awscli2 >/dev/null 2>&1; then
+            yum install -y awscli2
+        else
+            yum install -y awscli
+        fi
     elif [[ "$OS" == *"Ubuntu"* ]]; then
         apt-get install -y awscli
     fi
