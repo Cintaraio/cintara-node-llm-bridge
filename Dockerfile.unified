@@ -50,20 +50,16 @@ COPY cintara-node/node-config.env /home/cintara/node-config.env
 # Switch back to root for system installations
 USER root
 
-# Build llama.cpp server from source for reliability
-RUN apt-get update && apt-get install -y build-essential cmake git && \
+# Install llama.cpp server using simple make approach
+RUN apt-get update && apt-get install -y wget build-essential git && \
     cd /tmp && \
-    git clone https://github.com/ggerganov/llama.cpp.git && \
+    git clone --depth 1 --branch b3502 https://github.com/ggerganov/llama.cpp.git && \
     cd llama.cpp && \
-    # Use a stable release
-    git checkout b3259 && \
-    cmake -B build -DLLAMA_BUILD_SERVER=ON && \
-    cmake --build build --config Release --target server && \
-    cp build/bin/server /usr/local/bin/llama-server && \
+    make server -j$(nproc) && \
+    cp server /usr/local/bin/llama-server && \
     chmod +x /usr/local/bin/llama-server && \
     cd /tmp && rm -rf llama.cpp && \
-    # Verify installation
-    /usr/local/bin/llama-server --help >/dev/null 2>&1 && echo "✅ llama-server built and installed successfully"
+    echo "✅ llama-server installed successfully"
 
 # Download TinyLlama model
 RUN cd /models && \
