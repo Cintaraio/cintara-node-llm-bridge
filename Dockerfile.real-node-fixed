@@ -117,14 +117,28 @@ echo "\$NODE_PASSWORD" >> /tmp/node_setup_input
 echo "Starting node setup process..."
 
 # Run setup with timeout and proper error handling
+# Set non-interactive environment variables to prevent prompts
+export DEBIAN_FRONTEND=noninteractive
+export CI=true
+export BATCH_MODE=1
+
 su - cintara -c "
     cd /home/cintara/cintara-testnet-script && \
     source /home/cintara/node-config.env 2>/dev/null || true && \
     export CHAIN_ID=\$CHAIN_ID && \
     export MONIKER='\$MONIKER' && \
-    timeout 900 ./cintara_ubuntu_node.sh < /tmp/node_setup_input
+    export DEBIAN_FRONTEND=noninteractive && \
+    export CI=true && \
+    export BATCH_MODE=1 && \
+    timeout 300 ./cintara_ubuntu_node.sh < /tmp/node_setup_input 2>&1 | tee /tmp/setup.log
 " || {
     echo "⚠️  Node setup encountered issues, checking status..."
+
+    # Show last few lines of setup log for debugging
+    if [ -f "/tmp/setup.log" ]; then
+        echo "📝 Last 10 lines of setup log:"
+        tail -10 /tmp/setup.log || echo "Could not read setup log"
+    fi
 
     # Check if cintarad was installed (check multiple locations)
     CINTARAD_FOUND=false
@@ -171,9 +185,13 @@ echo "Node setup process completed"
 EOF
 RUN chmod +x /usr/local/bin/setup-real-node.sh
 
-# Run the real node setup during build
+# Run the real node setup during build with error handling
 RUN echo "🔧 Running node setup during build..." && \
-    /usr/local/bin/setup-real-node.sh && \
+    /usr/local/bin/setup-real-node.sh || { \
+        echo "⚠️  Node setup failed during build, but continuing..."; \
+        echo "Node will be configured at runtime if needed"; \
+        exit 0; \
+    } && \
     echo "Build-time node setup completed"
 
 # Create LLM server stub (no compilation needed)
