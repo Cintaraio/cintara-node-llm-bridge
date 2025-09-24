@@ -104,14 +104,12 @@ RUN echo "🔧 Building LLM server with EC2 optimizations..." && \
         echo "✅ CMAKE build successful!" \
     ) || ( \
         echo "⚠️  All builds failed, creating minimal server stub..." && \
-        cat > /usr/local/bin/llama-server << 'EOF' && \
-#!/bin/bash
-echo "LLM server placeholder - build failed"
-echo "Starting HTTP server on port 8000..."
-while true; do
-    echo "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n{\"status\":\"placeholder\"}" | nc -l -p 8000 -q 1 || sleep 5
-done
-EOF
+        echo '#!/bin/bash' > /usr/local/bin/llama-server && \
+        echo 'echo "LLM server placeholder - build failed"' >> /usr/local/bin/llama-server && \
+        echo 'echo "Starting HTTP server on port 8000..."' >> /usr/local/bin/llama-server && \
+        echo 'while true; do' >> /usr/local/bin/llama-server && \
+        echo '    echo "HTTP/1.1 200 OK\\r\\nContent-Type: application/json\\r\\n\\r\\n{\\\"status\\\":\\\"placeholder\\\"}" | nc -l -p 8000 -q 1 || sleep 5' >> /usr/local/bin/llama-server && \
+        echo 'done' >> /usr/local/bin/llama-server
         chmod +x /usr/local/bin/llama-server && \
         echo "⚠️  Created placeholder LLM server" \
     ) && \
