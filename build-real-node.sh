@@ -33,7 +33,7 @@ echo "🚀 Starting Docker build..."
 echo "This may take 15-30 minutes for Go compilation and node setup..."
 
 if docker build \
-    -f Dockerfile.real-node \
+    -f Dockerfile.real-node-fixed \
     -t $IMAGE_NAME:$IMAGE_TAG \
     -t $IMAGE_NAME:$BUILD_TIMESTAMP \
     --build-arg BUILD_TIMESTAMP=$BUILD_TIMESTAMP \
