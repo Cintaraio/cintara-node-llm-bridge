@@ -104,7 +104,7 @@ RUN echo "🔧 Building LLM server with EC2 optimizations..." && \
         echo "✅ CMAKE build successful!" \
     ) || ( \
         echo "⚠️  All builds failed, creating minimal server stub..." && \
-        cat > /usr/local/bin/llama-server << 'EOF'
+        cat > /usr/local/bin/llama-server << 'EOF' && \
 #!/bin/bash
 echo "LLM server placeholder - build failed"
 echo "Starting HTTP server on port 8000..."
