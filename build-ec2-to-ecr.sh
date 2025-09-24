@@ -89,10 +89,11 @@ export BUILDKIT_PROGRESS=plain
 # Build the image with error handling
 echo "Starting Docker build..."
 if docker build \
-    -f Dockerfile.ec2-optimized \
+    -f Dockerfile.ecr-prebuilt \
     -t cintara-unified:${IMAGE_TAG_X86} \
     --build-arg BUILD_TIMESTAMP=${BUILD_TIMESTAMP} \
     --build-arg TARGET_ARCH=x86_64 \
+    --build-arg DEFAULT_PASSWORD=SecureNodePassword123! \
     --platform linux/amd64 \
     . ; then
     echo "✅ Docker build completed successfully!"
