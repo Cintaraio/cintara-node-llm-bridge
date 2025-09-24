@@ -1,0 +1,118 @@
+services:
+  # Production Cintara Unified Node from AWS ECR
+  cintara-unified-ecr:
+    # Production image from AWS ECR Public Registry
+    image: public.ecr.aws/b8j2u1c6/cintaraio/cintara-unified:latest
+
+    # Alternative: Build from production Dockerfile
+    # build:
+    #   context: .
+    #   dockerfile: Dockerfile.production
+
+    container_name: cintara-unified-production
+    restart: unless-stopped
+
+    environment:
+      # Cintara Node Configuration (PRECONFIGURED)
+      - MONIKER=cintara-production-node
+      - CHAIN_ID=cintara_11001-1
+      - OVERWRITE_CONFIG=y
+      - AUTO_START=true
+
+      # Optional: Secret Network Deployment Configuration
+      # Uncomment and configure for Secret Network deployment
+      # - CHAIN_ID=secret-4
+      # - GENESIS_URL=https://github.com/scrtlabs/SecretNetwork/releases/latest/download/genesis.json
+      # - PERSISTENT_PEERS=bee0edb320d50c1bcb6bd59b4e04456d459bd70e@secret-4.node.enigma.co:26656
+
+      # Service URLs (Internal - DO NOT CHANGE)
+      - LLAMA_SERVER_URL=http://localhost:8000
+      - CINTARA_NODE_URL=http://localhost:26657
+      - LOG_PATH=/app/logs
+      - AI_FEATURES_ENABLED=true
+
+      # Logging
+      - LOG_LEVEL=info
+
+    ports:
+      # Cintara/Blockchain node ports
+      - "26657:26657"  # RPC endpoint (JSON-RPC API)
+      - "26656:26656"  # P2P networking
+      - "1317:1317"    # REST API
+      - "9090:9090"    # gRPC
+
+      # AI Services
+      - "8000:8000"    # LLaMA.cpp LLM server
+      - "8080:8080"    # FastAPI AI bridge
+
+    volumes:
+      # Persistent storage for blockchain data
+      - cintara_node_data:/data/.tmp-cintarad
+      - cintara_home_data:/home/cintara/data
+
+      # AI model cache
+      - llm_models:/models
+
+      # Application logs
+      - app_logs:/app/logs
+      - supervisor_logs:/var/log/supervisor
+
+    deploy:
+      resources:
+        limits:
+          cpus: '6.0'     # 6 CPU cores
+          memory: 8G      # 8GB RAM
+        reservations:
+          cpus: '4.0'     # Minimum 4 CPU cores
+          memory: 6G      # Minimum 6GB RAM
+
+    healthcheck:
+      test: ["CMD-SHELL", "/health-check.sh"]
+      interval: 60s
+      timeout: 30s
+      retries: 5
+      start_period: 300s  # 5 minutes for full service startup
+
+    networks:
+      - cintara-network
+
+# Production network configuration
+networks:
+  cintara-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.25.0.0/16
+
+# Persistent volumes for production data
+volumes:
+  cintara_node_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /opt/cintara/node-data  # Host directory for blockchain data
+
+  cintara_home_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /opt/cintara/home-data  # Host directory for node home
+
+  llm_models:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /opt/cintara/models     # Host directory for AI models
+
+  app_logs:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /opt/cintara/logs       # Host directory for application logs
+
+  supervisor_logs:
+    driver: local
