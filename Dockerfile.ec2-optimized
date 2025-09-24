@@ -147,7 +147,7 @@ COPY bridge/app.py /app/app.py
 WORKDIR /home/cintara/cintara-testnet-script
 RUN chown -R cintara:cintara /home/cintara /data && \
     su - cintara -c "source /home/cintara/node-config.env && cd /home/cintara/cintara-testnet-script && \
-    timeout 600 bash -c 'printf \\\"%s\\\\n%s\\\\n\\\" \\\"$MONIKER\\\" \\\"$OVERWRITE_CONFIG\\\" | ./cintara_ubuntu_node.sh' || \
+    timeout 600 bash -c 'echo -e \"\\\"$MONIKER\\\"\\n\\\"$OVERWRITE_CONFIG\\\"\\ndefaultpassword123\\ndefaultpassword123\" | ./cintara_ubuntu_node.sh' || \
     echo 'Node will be configured at runtime'"
 
 # Create supervisor configuration
@@ -159,7 +159,7 @@ logfile=/var/log/supervisor/supervisord.log
 pidfile=/var/run/supervisord.pid
 
 [program:cintara-node]
-command=bash -c 'source /home/cintara/node-config.env 2>/dev/null || true; mkdir -p /data/.tmp-cintarad; chown -R cintara:cintara /data; if command -v cintarad >/dev/null 2>&1 && [ -f "/data/.tmp-cintarad/config/config.toml" ]; then echo "Starting preconfigured node..."; cintarad start --home /data/.tmp-cintarad --rpc.laddr tcp://0.0.0.0:26657 --grpc.address 0.0.0.0:9090 --api.address tcp://0.0.0.0:1317 --api.enable true --log_level info; else echo "Configuring node..."; cd /home/cintara/cintara-testnet-script && source /home/cintara/node-config.env && printf "%s\n%s\n" "$MONIKER" "$OVERWRITE_CONFIG" | ./cintara_ubuntu_node.sh && cintarad start --home /data/.tmp-cintarad --rpc.laddr tcp://0.0.0.0:26657 --grpc.address 0.0.0.0:9090 --api.address tcp://0.0.0.0:1317 --api.enable true --log_level info; fi'
+command=bash -c 'source /home/cintara/node-config.env 2>/dev/null || true; mkdir -p /data/.tmp-cintarad; chown -R cintara:cintara /data; if command -v cintarad >/dev/null 2>&1 && [ -f "/data/.tmp-cintarad/config/config.toml" ]; then echo "Starting preconfigured node..."; cintarad start --home /data/.tmp-cintarad --rpc.laddr tcp://0.0.0.0:26657 --grpc.address 0.0.0.0:9090 --api.address tcp://0.0.0.0:1317 --api.enable true --log_level info; else echo "Configuring node..."; cd /home/cintara/cintara-testnet-script && source /home/cintara/node-config.env && echo "cintara-unified-node" > /tmp/node_input && echo "y" >> /tmp/node_input && echo "defaultpassword123" >> /tmp/node_input && echo "defaultpassword123" >> /tmp/node_input && ./cintara_ubuntu_node.sh < /tmp/node_input && cintarad start --home /data/.tmp-cintarad --rpc.laddr tcp://0.0.0.0:26657 --grpc.address 0.0.0.0:9090 --api.address tcp://0.0.0.0:1317 --api.enable true --log_level info; fi'
 user=cintara
 directory=/home/cintara
 autostart=true
