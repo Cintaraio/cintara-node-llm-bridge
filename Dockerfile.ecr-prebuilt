@@ -55,17 +55,8 @@ RUN python3 -m venv venv && \
 # Copy AI bridge application
 COPY bridge/app.py /app/app.py
 
-# Create working LLM server stub (no compilation needed)
-RUN cat > /usr/local/bin/llama-server << 'EOF'
-#!/bin/bash
-echo "Starting LLM placeholder server on port 8000..."
-while true; do
-    {
-        echo -e "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nConnection: close\r\n"
-        echo -e "\r\n{\"status\":\"ready\",\"model\":\"tinyllama\",\"context_length\":1024}"
-    } | nc -l -p 8000 -q 1 2>/dev/null || sleep 2
-done
-EOF
+# Copy and install LLM server stub
+COPY scripts/llama-server-stub.sh /usr/local/bin/llama-server
 RUN chmod +x /usr/local/bin/llama-server
 
 # Clone cintara testnet script
@@ -89,156 +80,19 @@ RUN chown -R cintara:cintara /home/cintara /data && \
     echo 'Pre-configuration attempted, will configure at runtime if needed'" && \
     echo "Node pre-configuration completed"
 
-# Create dynamic node startup script
-RUN cat > /usr/local/bin/start-cintara-node.sh << 'EOF'
-#!/bin/bash
-set -e
-
-# Get runtime password from environment or use build default
-RUNTIME_PASSWORD="${CINTARA_NODE_PASSWORD:-$DEFAULT_NODE_PASSWORD}"
-RUNTIME_MONIKER="${MONIKER:-cintara-secretvm-node}"
-
-echo "Starting Cintara node..."
-echo "  Moniker: $RUNTIME_MONIKER"
-echo "  Password configured: ${RUNTIME_PASSWORD:0:3}***"
-
-# Ensure data directory exists and has correct permissions
-mkdir -p /data/.tmp-cintarad
-chown -R cintara:cintara /data /home/cintara
-
-# Check if node is already configured
-if [ -f "/data/.tmp-cintarad/config/config.toml" ] && command -v cintarad >/dev/null 2>&1; then
-    echo "Starting pre-configured Cintara node..."
-    exec cintarad start \
-        --home /data/.tmp-cintarad \
-        --rpc.laddr tcp://0.0.0.0:26657 \
-        --grpc.address 0.0.0.0:9090 \
-        --api.address tcp://0.0.0.0:1317 \
-        --api.enable true \
-        --log_level info
-else
-    echo "Node not configured or cintarad not available..."
-
-    # Try runtime configuration if different password provided
-    if [ "$RUNTIME_PASSWORD" != "$DEFAULT_NODE_PASSWORD" ] && [ -d "/home/cintara/cintara-testnet-script" ]; then
-        echo "Attempting runtime configuration with new password..."
-        cd /home/cintara/cintara-testnet-script
-        source /home/cintara/node-config.env 2>/dev/null || true
-        timeout 300 bash -c "echo -e \"$RUNTIME_MONIKER\ny\n$RUNTIME_PASSWORD\n$RUNTIME_PASSWORD\" | ./cintara_ubuntu_node.sh" || echo "Runtime config failed"
-
-        # Try to start if successful
-        if command -v cintarad >/dev/null 2>&1 && [ -f "/data/.tmp-cintarad/config/config.toml" ]; then
-            exec cintarad start --home /data/.tmp-cintarad --rpc.laddr tcp://0.0.0.0:26657 --grpc.address 0.0.0.0:9090 --api.address tcp://0.0.0.0:1317 --api.enable true --log_level info
-        fi
-    fi
-
-    # Fallback to working placeholder
-    echo "Starting placeholder node service..."
-    while true; do
-        {
-            echo -e "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nConnection: close\r\n"
-            echo -e "\r\n{\"jsonrpc\":\"2.0\",\"result\":{\"node_info\":{\"network\":\"cintara_11001-1\",\"moniker\":\"$RUNTIME_MONIKER\",\"version\":\"0.1.0\"}}}"
-        } | nc -l -p 26657 -q 1 2>/dev/null || sleep 2
-    done
-fi
-EOF
+# Copy and install Cintara node startup script
+COPY scripts/start-cintara-node.sh /usr/local/bin/start-cintara-node.sh
 RUN chmod +x /usr/local/bin/start-cintara-node.sh
 
-# Create fixed supervisor configuration (no format strings)
-RUN cat > /etc/supervisor/conf.d/supervisord.conf << 'EOF'
-[supervisord]
-nodaemon=true
-user=root
-logfile=/var/log/supervisor/supervisord.log
-pidfile=/var/run/supervisord.pid
+# Copy supervisor configuration
+COPY config/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
-[program:cintara-node]
-command=/usr/local/bin/start-cintara-node.sh
-user=cintara
-directory=/home/cintara
-autostart=true
-autorestart=true
-stderr_logfile=/var/log/supervisor/cintara-node.err.log
-stdout_logfile=/var/log/supervisor/cintara-node.out.log
-
-[program:llama-server]
-command=/usr/local/bin/llama-server
-user=cintara
-directory=/models
-autostart=true
-autorestart=true
-stderr_logfile=/var/log/supervisor/llama-server.err.log
-stdout_logfile=/var/log/supervisor/llama-server.out.log
-
-[program:ai-bridge]
-command=/app/venv/bin/uvicorn app:app --host 0.0.0.0 --port 8080 --workers 1 --log-level info
-user=cintara
-directory=/app
-environment=LLAMA_SERVER_URL="http://localhost:8000",CINTARA_NODE_URL="http://localhost:26657",LOG_PATH="/app/logs",AI_FEATURES_ENABLED="true"
-autostart=true
-autorestart=true
-stderr_logfile=/var/log/supervisor/ai-bridge.err.log
-stdout_logfile=/var/log/supervisor/ai-bridge.out.log
-EOF
-
-# Create entrypoint script
-RUN cat > /unified-entrypoint.sh << 'EOF'
-#!/bin/bash
-set -e
-
-echo "🚀 Starting Cintara Unified Node (ECR Pre-built)"
-echo "🏗️  Built at: ${BUILD_TIMESTAMP:-unknown}"
-echo "🎯 Target Architecture: ${TARGET_ARCH:-x86_64}"
-echo "🔐 Password configurable via CINTARA_NODE_PASSWORD environment variable"
-echo ""
-
-# Create necessary directories
-mkdir -p /var/log/supervisor /app/logs /data/.tmp-cintarad
-chown -R cintara:cintara /var/log/supervisor /app/logs /data /home/cintara /models /app
-
-# Start supervisor
-echo "📊 Starting all services with supervisor..."
-exec /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf
-EOF
+# Copy entrypoint script
+COPY scripts/unified-entrypoint.sh /unified-entrypoint.sh
 RUN chmod +x /unified-entrypoint.sh
 
-# Create health check script
-RUN cat > /health-check.sh << 'EOF'
-#!/bin/bash
-echo "🔍 Checking service health..."
-
-# Check each service
-services_healthy=0
-
-if timeout 10 curl -sf http://localhost:26657/status > /dev/null 2>&1; then
-    echo "✅ Cintara node: healthy"
-    services_healthy=$((services_healthy + 1))
-else
-    echo "⚠️ Cintara node: placeholder mode"
-fi
-
-if timeout 10 curl -sf http://localhost:8000 > /dev/null 2>&1; then
-    echo "✅ LLM server: healthy"
-    services_healthy=$((services_healthy + 1))
-else
-    echo "❌ LLM server: unhealthy"
-fi
-
-if timeout 10 curl -sf http://localhost:8080/health > /dev/null 2>&1; then
-    echo "✅ AI bridge: healthy"
-    services_healthy=$((services_healthy + 1))
-else
-    echo "❌ AI bridge: unhealthy"
-fi
-
-if [ $services_healthy -ge 2 ]; then
-    echo "✅ Sufficient services running ($services_healthy/3)"
-    exit 0
-else
-    echo "❌ Insufficient services running ($services_healthy/3)"
-    exit 1
-fi
-EOF
+# Copy health check script
+COPY scripts/health-check.sh /health-check.sh
 RUN chmod +x /health-check.sh
 
 # Set final ownership
