@@ -51,22 +51,34 @@ COPY cintara-node/node-config.env /home/cintara/node-config.env
 # Switch back to root for system installations
 USER root
 
-# Install llama.cpp server with robust error handling
-RUN apt-get update && apt-get install -y wget build-essential git cmake pkg-config && \
+# Install llama.cpp server with fallback approaches
+RUN apt-get update && apt-get install -y wget build-essential git cmake && \
     cd /tmp && \
     echo "Cloning llama.cpp repository..." && \
     git clone --depth 1 https://github.com/ggerganov/llama.cpp.git && \
     cd llama.cpp && \
-    echo "Configuring build with cmake..." && \
-    mkdir -p build && cd build && \
-    cmake .. -DLLAMA_BUILD_SERVER=ON -DCMAKE_BUILD_TYPE=Release && \
-    echo "Building llama-server..." && \
-    cmake --build . --config Release --parallel $(nproc) && \
-    echo "Installing llama-server..." && \
-    BINARY_PATH=$(find . -name "llama-server" -o -name "server" | head -1) && \
-    cp "$BINARY_PATH" /usr/local/bin/llama-server && \
+    echo "Attempting to build llama-server..." && \
+    ( \
+        echo "Trying make approach..." && \
+        make server -j$(nproc) && \
+        cp server /usr/local/bin/llama-server \
+    ) || ( \
+        echo "Make failed, trying cmake approach..." && \
+        mkdir -p build && cd build && \
+        cmake .. -DGGML_BACKEND_DL=ON -DLLAMA_BUILD_SERVER=ON && \
+        cmake --build . --config Release -j$(nproc) && \
+        find . -name "*server*" -executable -type f | head -1 | xargs -I {} cp {} /usr/local/bin/llama-server \
+    ) || ( \
+        echo "All builds failed, using minimal server..." && \
+        g++ -O3 -std=c++17 -fPIC -pthread \
+        examples/server/server.cpp examples/common.cpp \
+        ggml/src/ggml.c ggml/src/ggml-alloc.c ggml/src/ggml-backend.c ggml/src/ggml-quants.c \
+        src/llama.cpp -Iggml/include -Isrc -Iexamples \
+        -o /usr/local/bin/llama-server \
+    ) && \
     chmod +x /usr/local/bin/llama-server && \
-    /usr/local/bin/llama-server --help > /dev/null && \
+    echo "Testing installation..." && \
+    /usr/local/bin/llama-server --help > /dev/null 2>&1 && \
     cd /tmp && rm -rf llama.cpp && \
     echo "✅ llama-server installed successfully"
 

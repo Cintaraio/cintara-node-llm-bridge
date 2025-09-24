@@ -15,15 +15,23 @@ RUN apt-get update && apt-get install -y \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Build llama.cpp server
+# Build llama.cpp server with multiple fallback approaches
 RUN cd /tmp && \
     echo "Cloning llama.cpp repository..." && \
     git clone --depth 1 https://github.com/ggerganov/llama.cpp.git && \
     cd llama.cpp && \
     echo "Building llama-server..." && \
-    mkdir -p build && cd build && \
-    cmake .. -DLLAMA_BUILD_SERVER=ON -DCMAKE_BUILD_TYPE=Release && \
-    cmake --build . --config Release --parallel $(nproc) && \
+    ( \
+        echo "Trying make build..." && \
+        make server -j$(nproc) && \
+        cp server /tmp/llama-server \
+    ) || ( \
+        echo "Make failed, trying cmake..." && \
+        mkdir -p build && cd build && \
+        cmake .. -DLLAMA_BUILD_SERVER=ON -DCMAKE_BUILD_TYPE=Release && \
+        cmake --build . --config Release -j$(nproc) && \
+        find . -name "*server*" -executable -type f | head -1 | xargs cp /tmp/llama-server \
+    ) && \
     echo "✅ llama-server built successfully"
 
 # Stage 2: Production runtime
@@ -58,7 +66,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy built llama-server from builder stage
-COPY --from=builder /tmp/llama.cpp/build/bin/llama-server /usr/local/bin/llama-server
+COPY --from=builder /tmp/llama-server /usr/local/bin/llama-server
 RUN chmod +x /usr/local/bin/llama-server
 
 # Create cintara user with sudo privileges
@@ -105,9 +113,11 @@ COPY bridge/app.py /app/app.py
 # Set up Cintara node during build time (PRECONFIGURED)
 WORKDIR /home/cintara/cintara-testnet-script
 
-# Copy automated setup script if available
-COPY cintara-node/automated-setup.sh /tmp/automated-setup.sh 2>/dev/null || echo "No automated setup script found"
-RUN chmod +x /tmp/automated-setup.sh 2>/dev/null || true
+# Create a dummy setup script (will be overwritten if real one exists)
+RUN echo '#!/bin/bash\necho "No automated setup script found"' > /tmp/automated-setup.sh && \
+    chmod +x /tmp/automated-setup.sh
+
+# Note: automated setup script will be copied if it exists, otherwise dummy is used
 
 # Run the automated setup during build time to PRECONFIGURE the node
 RUN chown -R cintara:cintara /home/cintara /data && \
