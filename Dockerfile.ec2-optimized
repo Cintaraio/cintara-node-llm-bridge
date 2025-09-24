@@ -109,7 +109,7 @@ RUN echo "🔧 Building LLM server with EC2 optimizations..." && \
         echo 'echo "Starting HTTP server on port 8000..."' >> /usr/local/bin/llama-server && \
         echo 'while true; do' >> /usr/local/bin/llama-server && \
         echo '    echo "HTTP/1.1 200 OK\\r\\nContent-Type: application/json\\r\\n\\r\\n{\\\"status\\\":\\\"placeholder\\\"}" | nc -l -p 8000 -q 1 || sleep 5' >> /usr/local/bin/llama-server && \
-        echo 'done' >> /usr/local/bin/llama-server
+        echo 'done' >> /usr/local/bin/llama-server && \
         chmod +x /usr/local/bin/llama-server && \
         echo "⚠️  Created placeholder LLM server" \
     ) && \
