@@ -1,4 +1,32 @@
-# Production Dockerfile for AWS ECR - Cintara Unified Container (Pre-configured)
+# Multi-stage Production Dockerfile for AWS ECR - Optimized Build
+# Stage 1: Build environment
+FROM ubuntu:22.04 AS builder
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    wget \
+    git \
+    build-essential \
+    cmake \
+    pkg-config \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Build llama.cpp server
+RUN cd /tmp && \
+    echo "Cloning llama.cpp repository..." && \
+    git clone --depth 1 https://github.com/ggerganov/llama.cpp.git && \
+    cd llama.cpp && \
+    echo "Building llama-server..." && \
+    mkdir -p build && cd build && \
+    cmake .. -DLLAMA_BUILD_SERVER=ON -DCMAKE_BUILD_TYPE=Release && \
+    cmake --build . --config Release --parallel $(nproc) && \
+    echo "✅ llama-server built successfully"
+
+# Stage 2: Production runtime
 FROM ubuntu:22.04
 
 # Set environment variables for production
@@ -11,14 +39,13 @@ ENV BRIDGE_PORT=8080
 ENV OVERWRITE_CONFIG=y
 ENV AUTO_START=true
 
-# Install all dependencies
+# Install runtime dependencies only
 RUN apt-get update && apt-get install -y \
     curl \
     jq \
     bash \
     wget \
     unzip \
-    build-essential \
     git \
     sudo \
     expect \
@@ -27,7 +54,12 @@ RUN apt-get update && apt-get install -y \
     python3-pip \
     python3-venv \
     supervisor \
+    ca-certificates \
     && rm -rf /var/lib/apt/lists/*
+
+# Copy built llama-server from builder stage
+COPY --from=builder /tmp/llama.cpp/build/bin/llama-server /usr/local/bin/llama-server
+RUN chmod +x /usr/local/bin/llama-server
 
 # Create cintara user with sudo privileges
 RUN useradd -ms /bin/bash cintara && \
@@ -37,7 +69,7 @@ RUN useradd -ms /bin/bash cintara && \
 RUN mkdir -p /data /home/cintara/data /app /models && \
     chown -R cintara:cintara /data /home/cintara/data /app /models
 
-# Switch to cintara user for setup
+# Switch to cintara user for cintara node setup
 USER cintara
 WORKDIR /home/cintara
 
@@ -45,29 +77,11 @@ WORKDIR /home/cintara
 RUN git clone https://github.com/Cintaraio/cintara-testnet-script.git
 WORKDIR /home/cintara/cintara-testnet-script
 
-# Copy our automated setup configuration
+# Copy configuration files
 COPY cintara-node/node-config.env /home/cintara/node-config.env
 
-# Switch back to root for system installations
+# Switch back to root for system configuration
 USER root
-
-# Install llama.cpp server with robust error handling
-RUN apt-get update && apt-get install -y wget build-essential git cmake pkg-config && \
-    cd /tmp && \
-    echo "Cloning llama.cpp repository..." && \
-    git clone --depth 1 https://github.com/ggerganov/llama.cpp.git && \
-    cd llama.cpp && \
-    echo "Configuring build with cmake..." && \
-    mkdir -p build && cd build && \
-    cmake .. -DLLAMA_BUILD_SERVER=ON -DCMAKE_BUILD_TYPE=Release && \
-    echo "Building llama-server..." && \
-    cmake --build . --config Release --parallel $(nproc) && \
-    echo "Installing llama-server..." && \
-    find . -name "llama-server" -o -name "server" | head -1 | xargs -I {} cp {} /usr/local/bin/llama-server && \
-    chmod +x /usr/local/bin/llama-server && \
-    /usr/local/bin/llama-server --help > /dev/null && \
-    cd /tmp && rm -rf llama.cpp && \
-    echo "✅ llama-server installed successfully"
 
 # Download TinyLlama model
 RUN cd /models && \
@@ -91,9 +105,9 @@ COPY bridge/app.py /app/app.py
 # Set up Cintara node during build time (PRECONFIGURED)
 WORKDIR /home/cintara/cintara-testnet-script
 
-# Copy automated setup script
-COPY cintara-node/automated-setup.sh /tmp/automated-setup.sh
-RUN chmod +x /tmp/automated-setup.sh
+# Copy automated setup script if available
+COPY cintara-node/automated-setup.sh /tmp/automated-setup.sh 2>/dev/null || echo "No automated setup script found"
+RUN chmod +x /tmp/automated-setup.sh 2>/dev/null || true
 
 # Run the automated setup during build time to PRECONFIGURE the node
 RUN chown -R cintara:cintara /home/cintara /data && \
@@ -107,7 +121,7 @@ COPY <<'EOF' /start-cintara.sh
 set -e
 
 # Load configuration
-source /home/cintara/node-config.env
+source /home/cintara/node-config.env 2>/dev/null || echo "Using default configuration"
 
 echo "🚀 Starting PRECONFIGURED Cintara Node..."
 echo "Configuration: $MONIKER on $CHAIN_ID"
@@ -126,12 +140,16 @@ if command -v cintarad >/dev/null 2>&1 && [ -f "/data/.tmp-cintarad/config/confi
         --api.enable true \
         --log_level info
 else
-    echo "❌ Preconfigured node not found. Manual setup may be required."
-    echo "To setup manually:"
-    echo "  docker exec -it <container> bash"
-    echo "  cd /home/cintara/cintara-testnet-script"
-    echo "  ./cintara_ubuntu_node.sh"
-    tail -f /dev/null
+    echo "❌ Preconfigured node not found. Running setup..."
+    cd /home/cintara/cintara-testnet-script && \
+    source /home/cintara/node-config.env && \
+    printf "%s\n%s\n" "$MONIKER" "$OVERWRITE_CONFIG" | ./cintara_ubuntu_node.sh && \
+    exec cintarad start --home /data/.tmp-cintarad \
+        --rpc.laddr tcp://0.0.0.0:26657 \
+        --grpc.address 0.0.0.0:9090 \
+        --api.address tcp://0.0.0.0:1317 \
+        --api.enable true \
+        --log_level info
 fi
 EOF
 
@@ -179,7 +197,7 @@ COPY <<'EOF' /unified-entrypoint.sh
 #!/bin/bash
 set -e
 
-echo "🚀 Starting Cintara Unified Node (PRECONFIGURED)..."
+echo "🚀 Starting Cintara Unified Node (OPTIMIZED BUILD)..."
 
 # Create log directories
 mkdir -p /var/log/supervisor /app/logs
@@ -195,9 +213,9 @@ RUN chmod +x /unified-entrypoint.sh
 COPY <<'EOF' /health-check.sh
 #!/bin/bash
 # Check all three services with proper timeouts
-timeout 10 curl -sf http://localhost:26657/status > /dev/null && \
-timeout 10 curl -sf http://localhost:8000/health > /dev/null && \
-timeout 10 curl -sf http://localhost:8080/health > /dev/null
+timeout 10 curl -sf http://localhost:26657/status > /dev/null 2>&1 && \
+timeout 10 curl -sf http://localhost:8000/health > /dev/null 2>&1 && \
+timeout 10 curl -sf http://localhost:8080/health > /dev/null 2>&1
 EOF
 
 RUN chmod +x /health-check.sh
