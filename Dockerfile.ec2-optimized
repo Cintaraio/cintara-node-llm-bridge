@@ -189,13 +189,13 @@ stdout_logfile=/var/log/supervisor/ai-bridge.out.log
 EOF
 
 # Create entrypoint script
-RUN cat > /unified-entrypoint.sh << 'EOF'
+COPY <<EOF /unified-entrypoint.sh
 #!/bin/bash
 set -e
 
 echo "🚀 Starting Cintara Unified Node (EC2-Optimized Build)"
-echo "🏗️  Built at: ${BUILD_TIMESTAMP:-unknown}"
-echo "🎯 Target Architecture: ${TARGET_ARCH:-x86_64}"
+echo "🏗️  Built at: \${BUILD_TIMESTAMP:-unknown}"
+echo "🎯 Target Architecture: \${TARGET_ARCH:-x86_64}"
 echo ""
 
 # Create necessary directories
@@ -210,7 +210,7 @@ EOF
 RUN chmod +x /unified-entrypoint.sh
 
 # Create health check script
-RUN cat > /health-check.sh << 'EOF'
+COPY <<EOF /health-check.sh
 #!/bin/bash
 echo "🔍 Checking service health..."
 
