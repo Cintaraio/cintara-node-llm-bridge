@@ -15,7 +15,7 @@ ENV AUTO_START=true
 ENV TARGET_ARCH=${TARGET_ARCH}
 ENV NODE_PASSWORD=${NODE_PASSWORD}
 
-# Install system dependencies with Go
+# Install system dependencies with Go and sudo
 RUN apt-get update && apt-get install -y \
     curl \
     wget \
@@ -32,6 +32,7 @@ RUN apt-get update && apt-get install -y \
     python3-venv \
     supervisor \
     netcat \
+    sudo \
     && rm -rf /var/lib/apt/lists/*
 
 # Verify Go installation
@@ -43,11 +44,15 @@ RUN useradd -ms /bin/bash cintara && \
     mkdir -p /home/cintara/.go && \
     chown -R cintara:cintara /home/cintara
 
-# Set Go environment for cintara user
+# Set Go environment for cintara user and system-wide
 USER cintara
 ENV GOPATH=/home/cintara/.go
 ENV GOROOT=/usr/lib/go
-ENV PATH=$PATH:$GOROOT/bin:$GOPATH/bin
+ENV PATH=$PATH:$GOROOT/bin:$GOPATH/bin:/home/cintara/go/bin:/home/cintara/.local/bin
+
+# Also set system-wide PATH
+USER root
+ENV PATH=$PATH:/home/cintara/go/bin:/home/cintara/.local/bin
 
 # Create directories
 RUN mkdir -p /home/cintara/data /home/cintara/logs
@@ -121,12 +126,31 @@ su - cintara -c "
 " || {
     echo "⚠️  Node setup encountered issues, checking status..."
 
-    # Check if cintarad was installed
+    # Check if cintarad was installed (check multiple locations)
+    CINTARAD_FOUND=false
+
+    # Check common installation paths
+    for path in "/usr/local/bin/cintarad" "/usr/bin/cintarad" "/home/cintara/go/bin/cintarad" "/home/cintara/.local/bin/cintarad"; do
+        if [ -f "\$path" ]; then
+            echo "✅ Found cintarad at: \$path"
+            ln -sf "\$path" /usr/local/bin/cintarad 2>/dev/null || cp "\$path" /usr/local/bin/cintarad
+            CINTARAD_FOUND=true
+            break
+        fi
+    done
+
+    # Check if it's now in PATH
     if command -v cintarad >/dev/null 2>&1; then
-        echo "✅ cintarad binary found"
+        echo "✅ cintarad binary available in PATH"
         cintarad version || echo "Binary exists but version check failed"
-    else
-        echo "❌ cintarad binary not found"
+        CINTARAD_FOUND=true
+    fi
+
+    if [ "\$CINTARAD_FOUND" = false ]; then
+        echo "❌ cintarad binary not found in any standard location"
+        echo "Searching for any cintara-related binaries:"
+        find /usr -name "*cintara*" 2>/dev/null || echo "No cintara binaries found"
+        find /home/cintara -name "*cintara*" 2>/dev/null || echo "No cintara binaries in home"
     fi
 
     # Check if config directory was created
