@@ -1,0 +1,128 @@
+services:
+  # Real Cintara Blockchain Node - Test Build
+  cintara-real-node:
+    build:
+      context: .
+      dockerfile: Dockerfile.real-node
+      args:
+        BUILD_TIMESTAMP: "${BUILD_TIMESTAMP:-$(date +%Y%m%d-%H%M%S)}"
+        TARGET_ARCH: "x86_64"
+        NODE_PASSWORD: "RealNodePassword123!"
+
+    container_name: cintara-real-node-test
+    restart: unless-stopped
+    platform: linux/amd64
+
+    # Environment Variables
+    environment:
+      # Blockchain Configuration
+      - MONIKER=cintara-real-node
+      - CHAIN_ID=cintara_11001-1
+      - OVERWRITE_CONFIG=y
+      - AUTO_START=true
+
+      # Node password (can be customized)
+      - NODE_PASSWORD=RealNodePassword123!
+
+      # Service URLs
+      - LLAMA_SERVER_URL=http://localhost:8000
+      - CINTARA_NODE_URL=http://localhost:26657
+      - LOG_PATH=/app/logs
+      - AI_FEATURES_ENABLED=true
+
+      # Logging
+      - LOG_LEVEL=info
+      - DEBUG_MODE=true
+
+    # Port mappings - IMPORTANT: These need to be accessible externally
+    ports:
+      # Cintara blockchain node (must be accessible from internet)
+      - "26657:26657"  # RPC endpoint (for testnet.cintara.io to discover)
+      - "26656:26656"  # P2P networking (for peer connections)
+      - "1317:1317"    # REST API
+      - "9090:9090"    # gRPC
+
+      # AI/LLM services
+      - "8000:8000"    # LLM server
+      - "8080:8080"    # AI Bridge API
+
+    # Use Docker volumes for persistence
+    volumes:
+      - cintara_blockchain_data:/data/.tmp-cintarad
+      - cintara_node_home:/home/cintara/.cintarad
+      - cintara_node_config:/home/cintara
+      - app_logs:/app/logs
+      - supervisor_logs:/var/log/supervisor
+
+    # Resource limits for real blockchain node
+    deploy:
+      resources:
+        limits:
+          cpus: '4.0'
+          memory: 8G
+        reservations:
+          cpus: '2.0'
+          memory: 4G
+
+    # Extended health checks for real blockchain startup
+    healthcheck:
+      test: ["CMD-SHELL", "/health-check.sh"]
+      interval: 60s
+      timeout: 30s
+      retries: 10
+      start_period: 600s  # 10 minutes for blockchain sync
+
+    # Network configuration
+    networks:
+      - cintara_network
+
+    # Security optimizations
+    security_opt:
+      - no-new-privileges:true
+
+    # Capabilities for blockchain operations
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETUID
+      - SETGID
+      - DAC_OVERRIDE
+      - NET_BIND_SERVICE
+      - SYS_TIME  # For blockchain time sync
+
+    # Tmpfs for temporary blockchain data
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=1g
+
+    # Logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "3"
+
+# Networks
+networks:
+  cintara_network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.23.0.0/16
+
+# Persistent volumes for blockchain data
+volumes:
+  cintara_blockchain_data:
+    driver: local
+
+  cintara_node_home:
+    driver: local
+
+  cintara_node_config:
+    driver: local
+
+  app_logs:
+    driver: local
+
+  supervisor_logs:
+    driver: local
