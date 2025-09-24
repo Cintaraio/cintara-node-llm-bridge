@@ -37,8 +37,11 @@ aws ecr-public get-login-password --region us-east-1 | docker login --username A
 
 # Build the image
 echo "🏗️  Building production image (this may take 15-30 minutes)..."
-echo "Using multi-stage build with BuildKit for better performance..."
+echo "Using BuildKit for better performance..."
 export DOCKER_BUILDKIT=1
+
+# Try the fixed production dockerfile
+echo "Building with Dockerfile.production..."
 docker build -f Dockerfile.production -t cintara-unified:${IMAGE_TAG} . --progress=plain
 
 # Tag for ECR

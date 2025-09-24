@@ -63,7 +63,8 @@ RUN apt-get update && apt-get install -y wget build-essential git cmake pkg-conf
     echo "Building llama-server..." && \
     cmake --build . --config Release --parallel $(nproc) && \
     echo "Installing llama-server..." && \
-    find . -name "llama-server" -o -name "server" | head -1 | xargs -I {} cp {} /usr/local/bin/llama-server && \
+    BINARY_PATH=$(find . -name "llama-server" -o -name "server" | head -1) && \
+    cp "$BINARY_PATH" /usr/local/bin/llama-server && \
     chmod +x /usr/local/bin/llama-server && \
     /usr/local/bin/llama-server --help > /dev/null && \
     cd /tmp && rm -rf llama.cpp && \
