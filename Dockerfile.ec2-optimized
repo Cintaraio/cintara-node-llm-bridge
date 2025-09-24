@@ -151,7 +151,7 @@ RUN chown -R cintara:cintara /home/cintara /data && \
     echo 'Node will be configured at runtime'"
 
 # Create supervisor configuration
-RUN cat > /etc/supervisor/conf.d/supervisord.conf << 'EOF'
+COPY <<EOF /etc/supervisor/conf.d/supervisord.conf
 [supervisord]
 nodaemon=true
 user=root
