@@ -1,17 +1,26 @@
 #!/bin/bash
-# Test Real Cintara Node Build and Deployment
+# Test Real Cintara Node with Pre-built Image
 set -e
 
-echo "🚀 Testing Real Cintara Node Build"
-echo "=================================="
+echo "🚀 Testing Real Cintara Node (Pre-built)"
+echo "======================================="
+
+# Check if image exists
+if ! docker image inspect cintara-real-node:latest >/dev/null 2>&1; then
+    echo "❌ Pre-built image 'cintara-real-node:latest' not found!"
+    echo "   Please run './build-real-node.sh' first to build the image."
+    exit 1
+fi
+
+echo "✅ Found pre-built image: cintara-real-node:latest"
 
 # Clean up any existing containers
 echo "🧹 Cleaning up existing containers..."
-docker-compose -f docker-compose.real-node-test.yml down --volumes --remove-orphans 2>/dev/null || true
+docker-compose -f docker-compose.real-node-prebuilt.yml down --volumes --remove-orphans 2>/dev/null || true
 
-# Build and start
-echo "🔨 Building and starting real node..."
-docker-compose -f docker-compose.real-node-test.yml up -d --build
+# Start with pre-built image
+echo "🚀 Starting real node with pre-built image..."
+docker-compose -f docker-compose.real-node-prebuilt.yml up -d
 
 # Wait for services to start
 echo "⏳ Waiting for services to initialize (60 seconds)..."
@@ -19,11 +28,11 @@ sleep 60
 
 # Check container status
 echo "📊 Container Status:"
-docker-compose -f docker-compose.real-node-test.yml ps
+docker-compose -f docker-compose.real-node-prebuilt.yml ps
 
 # Check logs
 echo "📝 Recent Logs:"
-docker-compose -f docker-compose.real-node-test.yml logs --tail=30
+docker-compose -f docker-compose.real-node-prebuilt.yml logs --tail=30
 
 # Test endpoints
 echo "🔍 Testing Endpoints:"
@@ -42,11 +51,11 @@ curl -s http://localhost:8080/health || echo "AI Bridge failed"
 
 # Check if real cintarad is running
 echo -e "\n🔍 Checking if real blockchain node is running:"
-docker-compose -f docker-compose.real-node-test.yml exec -T cintara-real-node ps aux | grep -E "(cintarad|nc)" || echo "Process check failed"
+docker-compose -f docker-compose.real-node-prebuilt.yml exec -T cintara-real-node-prebuilt ps aux | grep -E "(cintarad|nc)" || echo "Process check failed"
 
 # Check for cintarad binary
 echo -e "\n🔍 Checking for cintarad binary:"
-docker-compose -f docker-compose.real-node-test.yml exec -T cintara-real-node which cintarad 2>/dev/null && echo "✅ cintarad found" || echo "❌ cintarad not found"
+docker-compose -f docker-compose.real-node-prebuilt.yml exec -T cintara-real-node-prebuilt which cintarad 2>/dev/null && echo "✅ cintarad found" || echo "❌ cintarad not found"
 
 echo ""
 echo "🎯 Test Complete!"

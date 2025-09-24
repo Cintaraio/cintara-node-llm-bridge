@@ -1,0 +1,119 @@
+services:
+  # Real Cintara Blockchain Node - Using Pre-built Image
+  cintara-real-node:
+    # Use the locally built image
+    image: cintara-real-node:latest
+
+    container_name: cintara-real-node-prebuilt
+    restart: unless-stopped
+    platform: linux/amd64
+
+    # Environment Variables - Can override build defaults
+    environment:
+      # Blockchain Configuration
+      - MONIKER=cintara-real-ec2-node
+      - CHAIN_ID=cintara_11001-1
+      - OVERWRITE_CONFIG=y
+      - AUTO_START=true
+
+      # Optional: Override the build-time password
+      # - NODE_PASSWORD=YourCustomPassword123!
+
+      # Service URLs
+      - LLAMA_SERVER_URL=http://localhost:8000
+      - CINTARA_NODE_URL=http://localhost:26657
+      - LOG_PATH=/app/logs
+      - AI_FEATURES_ENABLED=true
+
+      # Logging
+      - LOG_LEVEL=info
+      - DEBUG_MODE=true
+
+    # Port mappings - CRITICAL: Must be accessible from internet for testnet discovery
+    ports:
+      # Cintara blockchain node (external access required)
+      - "26657:26657"  # RPC endpoint (testnet.cintara.io needs this)
+      - "26656:26656"  # P2P networking (peer connections)
+      - "1317:1317"    # REST API
+      - "9090:9090"    # gRPC
+
+      # AI/LLM services (optional external access)
+      - "8000:8000"    # LLM server
+      - "8080:8080"    # AI Bridge API
+
+    # Persistent volumes for blockchain data
+    volumes:
+      - cintara_blockchain_data:/data/.tmp-cintarad
+      - cintara_node_home:/home/cintara/.cintarad
+      - cintara_node_config:/home/cintara
+      - app_logs:/app/logs
+      - supervisor_logs:/var/log/supervisor
+
+    # Resource limits optimized for real blockchain
+    deploy:
+      resources:
+        limits:
+          cpus: '6.0'
+          memory: 12G
+        reservations:
+          cpus: '4.0'
+          memory: 8G
+
+    # Health checks for blockchain node
+    healthcheck:
+      test: ["CMD-SHELL", "/health-check.sh"]
+      interval: 60s
+      timeout: 30s
+      retries: 15
+      start_period: 900s  # 15 minutes for initial blockchain sync
+
+    # Network configuration
+    networks:
+      - cintara_network
+
+    # Security settings
+    security_opt:
+      - no-new-privileges:true
+
+    # Required capabilities for blockchain operations
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETUID
+      - SETGID
+      - DAC_OVERRIDE
+      - NET_BIND_SERVICE
+      - SYS_TIME
+
+    # Optimized logging for blockchain
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "500m"
+        max-file: "5"
+
+# Networks
+networks:
+  cintara_network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.24.0.0/16
+
+# Persistent volumes for blockchain data
+volumes:
+  cintara_blockchain_data:
+    driver: local
+
+  cintara_node_home:
+    driver: local
+
+  cintara_node_config:
+    driver: local
+
+  app_logs:
+    driver: local
+
+  supervisor_logs:
+    driver: local
