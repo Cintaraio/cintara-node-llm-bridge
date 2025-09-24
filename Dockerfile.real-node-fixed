@@ -404,7 +404,7 @@ RUN chown -R cintara:cintara /home/cintara /app /models
 # Add build info
 RUN echo "Build timestamp: ${BUILD_TIMESTAMP}" > /build-info.txt && \
     echo "Target architecture: ${TARGET_ARCH}" >> /build-info.txt && \
-    echo "Node password configured: ${NODE_PASSWORD:0:3}***" >> /build-info.txt && \
+    echo "Node password configured: ***" >> /build-info.txt && \
     echo "Chain ID: ${CHAIN_ID}" >> /build-info.txt && \
     echo "Built with: Real Cintara blockchain node" >> /build-info.txt
 
