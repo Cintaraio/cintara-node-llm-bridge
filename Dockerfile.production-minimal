@@ -1,4 +1,4 @@
-# Production Dockerfile for AWS ECR - Cintara Unified Container (Pre-configured)
+# Minimal Production Dockerfile - Basic llama-server without CURL dependencies
 FROM ubuntu:22.04
 
 # Set environment variables for production
@@ -11,7 +11,7 @@ ENV BRIDGE_PORT=8080
 ENV OVERWRITE_CONFIG=y
 ENV AUTO_START=true
 
-# Install all dependencies
+# Install all dependencies (minimal set)
 RUN apt-get update && apt-get install -y \
     curl \
     jq \
@@ -27,6 +27,7 @@ RUN apt-get update && apt-get install -y \
     python3-pip \
     python3-venv \
     supervisor \
+    cmake \
     && rm -rf /var/lib/apt/lists/*
 
 # Create cintara user with sudo privileges
@@ -51,36 +52,23 @@ COPY cintara-node/node-config.env /home/cintara/node-config.env
 # Switch back to root for system installations
 USER root
 
-# Install llama.cpp server with fallback approaches
-RUN apt-get update && apt-get install -y wget build-essential git cmake libcurl4-openssl-dev && \
+# Install llama.cpp server - minimal approach with CURL disabled
+RUN echo "Building minimal llama-server..." && \
     cd /tmp && \
-    echo "Cloning llama.cpp repository..." && \
     git clone --depth 1 https://github.com/ggerganov/llama.cpp.git && \
     cd llama.cpp && \
-    echo "Attempting to build llama-server..." && \
-    ( \
-        echo "Trying make approach..." && \
-        make server -j$(nproc) && \
-        cp server /usr/local/bin/llama-server \
-    ) || ( \
-        echo "Make failed, trying cmake approach..." && \
-        mkdir -p build && cd build && \
-        cmake .. -DGGML_BACKEND_DL=ON -DLLAMA_BUILD_SERVER=ON -DLLAMA_CURL=OFF && \
-        cmake --build . --config Release -j$(nproc) && \
-        find . -name "*server*" -executable -type f | head -1 | xargs -I {} cp {} /usr/local/bin/llama-server \
-    ) || ( \
-        echo "All builds failed, using minimal server..." && \
-        g++ -O3 -std=c++17 -fPIC -pthread \
-        examples/server/server.cpp examples/common.cpp \
-        ggml/src/ggml.c ggml/src/ggml-alloc.c ggml/src/ggml-backend.c ggml/src/ggml-quants.c \
-        src/llama.cpp -Iggml/include -Isrc -Iexamples \
-        -o /usr/local/bin/llama-server \
-    ) && \
+    mkdir -p build && cd build && \
+    cmake .. \
+        -DLLAMA_BUILD_SERVER=ON \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DLLAMA_CURL=OFF \
+        -DLLAMA_BUILD_EXAMPLES=OFF \
+        -DGGML_BACKEND_DL=OFF && \
+    cmake --build . --config Release -j$(nproc) && \
+    find . -name "*server*" -executable -type f | head -1 | xargs -I {} cp {} /usr/local/bin/llama-server && \
     chmod +x /usr/local/bin/llama-server && \
-    echo "Testing installation..." && \
-    /usr/local/bin/llama-server --help > /dev/null 2>&1 && \
     cd /tmp && rm -rf llama.cpp && \
-    echo "✅ llama-server installed successfully"
+    echo "✅ Minimal llama-server installed successfully"
 
 # Download TinyLlama model
 RUN cd /models && \
@@ -104,54 +92,14 @@ COPY bridge/app.py /app/app.py
 # Set up Cintara node during build time (PRECONFIGURED)
 WORKDIR /home/cintara/cintara-testnet-script
 
-# Copy automated setup script
-COPY cintara-node/automated-setup.sh /tmp/automated-setup.sh
-RUN chmod +x /tmp/automated-setup.sh
-
 # Run the automated setup during build time to PRECONFIGURE the node
 RUN chown -R cintara:cintara /home/cintara /data && \
     su - cintara -c "source /home/cintara/node-config.env && cd /home/cintara/cintara-testnet-script && \
     timeout 600 bash -c 'printf \\\"%s\\\\n%s\\\\n\\\" \\\"$MONIKER\\\" \\\"$OVERWRITE_CONFIG\\\" | ./cintara_ubuntu_node.sh' || \
     echo 'Node preconfigured during build'"
 
-# Create runtime startup script for cintara node (already PRECONFIGURED)
-COPY <<'EOF' /start-cintara.sh
-#!/bin/bash
-set -e
-
-# Load configuration
-source /home/cintara/node-config.env
-
-echo "🚀 Starting PRECONFIGURED Cintara Node..."
-echo "Configuration: $MONIKER on $CHAIN_ID"
-
-# Ensure directories exist
-mkdir -p /data/.tmp-cintarad
-chown -R cintara:cintara /data
-
-# Node should already be preconfigured, just start it
-if command -v cintarad >/dev/null 2>&1 && [ -f "/data/.tmp-cintarad/config/config.toml" ]; then
-    echo "✅ Starting preconfigured Cintara node..."
-    exec cintarad start --home /data/.tmp-cintarad \
-        --rpc.laddr tcp://0.0.0.0:26657 \
-        --grpc.address 0.0.0.0:9090 \
-        --api.address tcp://0.0.0.0:1317 \
-        --api.enable true \
-        --log_level info
-else
-    echo "❌ Preconfigured node not found. Manual setup may be required."
-    echo "To setup manually:"
-    echo "  docker exec -it <container> bash"
-    echo "  cd /home/cintara/cintara-testnet-script"
-    echo "  ./cintara_ubuntu_node.sh"
-    tail -f /dev/null
-fi
-EOF
-
-RUN chmod +x /start-cintara.sh
-
 # Create supervisor configuration for all THREE services
-COPY <<'EOF' /etc/supervisor/conf.d/supervisord.conf
+RUN cat > /etc/supervisor/conf.d/supervisord.conf << 'EOF'
 [supervisord]
 nodaemon=true
 user=root
@@ -159,7 +107,7 @@ logfile=/var/log/supervisor/supervisord.log
 pidfile=/var/run/supervisord.pid
 
 [program:cintara-node]
-command=/start-cintara.sh
+command=bash -c 'source /home/cintara/node-config.env && if command -v cintarad >/dev/null 2>&1 && [ -f "/data/.tmp-cintarad/config/config.toml" ]; then cintarad start --home /data/.tmp-cintarad --rpc.laddr tcp://0.0.0.0:26657 --grpc.address 0.0.0.0:9090 --api.address tcp://0.0.0.0:1317 --api.enable true --log_level info; else echo "Node setup required"; cd /home/cintara/cintara-testnet-script && printf "%s\n%s\n" "$MONIKER" "$OVERWRITE_CONFIG" | ./cintara_ubuntu_node.sh && cintarad start --home /data/.tmp-cintarad --rpc.laddr tcp://0.0.0.0:26657 --grpc.address 0.0.0.0:9090 --api.address tcp://0.0.0.0:1317 --api.enable true --log_level info; fi'
 user=cintara
 directory=/home/cintara
 autostart=true
@@ -168,7 +116,7 @@ stderr_logfile=/var/log/supervisor/cintara-node.err.log
 stdout_logfile=/var/log/supervisor/cintara-node.out.log
 
 [program:llama-server]
-command=/usr/local/bin/llama-server --model /models/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf --ctx-size 1024 --threads 4 --host 0.0.0.0 --port 8000 --n-predict 256 --verbose
+command=/usr/local/bin/llama-server --model /models/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf --ctx-size 1024 --threads 4 --host 0.0.0.0 --port 8000 --n-predict 256
 user=cintara
 directory=/models
 autostart=true
@@ -187,15 +135,15 @@ stderr_logfile=/var/log/supervisor/ai-bridge.err.log
 stdout_logfile=/var/log/supervisor/ai-bridge.out.log
 EOF
 
-# Create unified entrypoint (PRODUCTION READY)
-COPY <<'EOF' /unified-entrypoint.sh
+# Create unified entrypoint
+RUN cat > /unified-entrypoint.sh << 'EOF'
 #!/bin/bash
 set -e
 
-echo "🚀 Starting Cintara Unified Node (PRECONFIGURED)..."
+echo "🚀 Starting Cintara Unified Node (MINIMAL BUILD)..."
 
 # Create log directories
-mkdir -p /var/log/supervisor /app/logs
+mkdir -p /var/log/supervisor /app/logs /data/.tmp-cintarad
 chown -R cintara:cintara /var/log/supervisor /app/logs /data /home/cintara /models /app
 
 echo "📊 Starting all THREE services with supervisor..."
@@ -205,12 +153,12 @@ EOF
 RUN chmod +x /unified-entrypoint.sh
 
 # Create health check script for all three services
-COPY <<'EOF' /health-check.sh
+RUN cat > /health-check.sh << 'EOF'
 #!/bin/bash
 # Check all three services with proper timeouts
-timeout 10 curl -sf http://localhost:26657/status > /dev/null && \
-timeout 10 curl -sf http://localhost:8000/health > /dev/null && \
-timeout 10 curl -sf http://localhost:8080/health > /dev/null
+timeout 10 curl -sf http://localhost:26657/status > /dev/null 2>&1 && \
+timeout 10 curl -sf http://localhost:8000/health > /dev/null 2>&1 && \
+timeout 10 curl -sf http://localhost:8080/health > /dev/null 2>&1
 EOF
 
 RUN chmod +x /health-check.sh
@@ -221,9 +169,9 @@ RUN chown -R cintara:cintara /home/cintara /app /models
 # Expose all required ports
 EXPOSE 26656 26657 1317 9090 8000 8080
 
-# Health check with longer startup time for preconfigured services
+# Health check
 HEALTHCHECK --interval=60s --timeout=30s --start-period=300s --retries=3 \
     CMD /health-check.sh
 
-# Start all services (PRECONFIGURED AND READY)
+# Start all services
 CMD ["/unified-entrypoint.sh"]

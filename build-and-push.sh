@@ -40,11 +40,14 @@ echo "🏗️  Building production image (this may take 15-30 minutes)..."
 echo "Using BuildKit for better performance..."
 export DOCKER_BUILDKIT=1
 
-# Try the optimized multi-stage dockerfile first (more reliable)
-echo "Building with Dockerfile.production-optimized (multi-stage build)..."
-docker build -f Dockerfile.production-optimized -t cintara-unified:${IMAGE_TAG} . --progress=plain || {
-    echo "❌ Optimized build failed, trying standard production build..."
-    docker build -f Dockerfile.production -t cintara-unified:${IMAGE_TAG} . --progress=plain
+# Try builds in order of reliability
+echo "Building with Dockerfile.production-minimal (most reliable)..."
+docker build -f Dockerfile.production-minimal -t cintara-unified:${IMAGE_TAG} . --progress=plain || {
+    echo "❌ Minimal build failed, trying optimized build..."
+    docker build -f Dockerfile.production-optimized -t cintara-unified:${IMAGE_TAG} . --progress=plain || {
+        echo "❌ Optimized build failed, trying standard production build..."
+        docker build -f Dockerfile.production -t cintara-unified:${IMAGE_TAG} . --progress=plain
+    }
 }
 
 # Tag for ECR

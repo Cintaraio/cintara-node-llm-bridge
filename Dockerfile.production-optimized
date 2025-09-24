@@ -13,6 +13,7 @@ RUN apt-get update && apt-get install -y \
     cmake \
     pkg-config \
     ca-certificates \
+    libcurl4-openssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Build llama.cpp server with multiple fallback approaches
@@ -28,7 +29,7 @@ RUN cd /tmp && \
     ) || ( \
         echo "Make failed, trying cmake..." && \
         mkdir -p build && cd build && \
-        cmake .. -DLLAMA_BUILD_SERVER=ON -DCMAKE_BUILD_TYPE=Release && \
+        cmake .. -DLLAMA_BUILD_SERVER=ON -DCMAKE_BUILD_TYPE=Release -DLLAMA_CURL=OFF && \
         cmake --build . --config Release -j$(nproc) && \
         find . -name "*server*" -executable -type f | head -1 | xargs cp /tmp/llama-server \
     ) && \
