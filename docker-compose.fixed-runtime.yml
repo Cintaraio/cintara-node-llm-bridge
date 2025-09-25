@@ -1,0 +1,75 @@
+version: '3.8'
+
+services:
+  cintara-node-fixed:
+    build:
+      context: .
+      dockerfile: Dockerfile.fixed-runtime
+      args:
+        - BUILD_TIMESTAMP=${BUILD_TIMESTAMP:-$(date +%Y%m%d-%H%M%S)}
+        - TARGET_ARCH=${TARGET_ARCH:-x86_64}
+        - NODE_PASSWORD=${NODE_PASSWORD:-RealNodePassword123!}
+    image: cintara-node-fixed:latest
+    container_name: cintara-node-fixed
+    restart: unless-stopped
+
+    # Environment variables for node configuration
+    environment:
+      - CHAIN_ID=${CHAIN_ID:-cintara_11001-1}
+      - MONIKER=${MONIKER:-cintara-fixed-node}            # Node name
+      - OVERWRITE_CONFIG=${OVERWRITE_CONFIG:-y}           # Overwrite configs
+      - NODE_PASSWORD=${NODE_PASSWORD:-RealNodePassword123!}  # Keyring password
+      - AUTO_START=${AUTO_START:-true}
+
+    # Port mappings
+    ports:
+      # Blockchain ports
+      - "26656:26656"  # P2P port for peer connections
+      - "26657:26657"  # RPC port for API calls
+      - "1317:1317"    # REST API port
+      - "9090:9090"    # gRPC port
+      # Service ports
+      - "8000:8000"    # LLM server
+      - "8080:8080"    # AI bridge API
+
+    # Volume mounts for persistent data
+    volumes:
+      - cintara_fixed_data:/data
+      - cintara_fixed_logs:/var/log/supervisor
+      - cintara_fixed_app_logs:/app/logs
+
+    # Network configuration
+    networks:
+      - cintara-network
+
+    # Health check
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:26657/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 600s  # Give 10 minutes for initial setup
+
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+          cpus: '2.0'
+        reservations:
+          memory: 2G
+          cpus: '1.0'
+
+# Persistent volumes
+volumes:
+  cintara_fixed_data:
+    driver: local
+  cintara_fixed_logs:
+    driver: local
+  cintara_fixed_app_logs:
+    driver: local
+
+# Network configuration
+networks:
+  cintara-network:
+    driver: bridge

@@ -1,0 +1,199 @@
+# Pre-configured Cintara Node for SecretNetwork
+FROM ubuntu:22.04
+
+# Build arguments
+ARG BUILD_TIMESTAMP
+ARG TARGET_ARCH=x86_64
+
+# Set environment variables
+ENV DEBIAN_FRONTEND=noninteractive
+ENV CHAIN_ID=cintara_11001-1
+ENV TARGET_ARCH=${TARGET_ARCH}
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    jq \
+    bash \
+    wget \
+    unzip \
+    build-essential \
+    git \
+    sudo \
+    python3 \
+    python3-pip \
+    python3-venv \
+    supervisor \
+    netcat \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create cintara user with sudo privileges
+RUN useradd -ms /bin/bash cintara && \
+    echo "cintara ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+
+# Create directories
+RUN mkdir -p /data /app /models /var/log/supervisor && \
+    chown -R cintara:cintara /data /home/cintara /app /models
+
+# Setup Python environment for AI bridge
+WORKDIR /app
+RUN python3 -m venv venv && \
+    . venv/bin/activate && \
+    pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir \
+        fastapi==0.104.1 \
+        uvicorn[standard]==0.24.0 \
+        requests==2.31.0 \
+        pydantic==2.5.0
+
+# Copy AI bridge application
+COPY bridge/app.py /app/app.py
+
+# Copy the cintarad binary from releases (faster than building)
+RUN wget -O /usr/local/bin/cintarad \
+    https://github.com/Cintaraio/cintara-testnet-script/releases/download/ubuntu22.04/cintarad && \
+    chmod +x /usr/local/bin/cintarad
+
+# Copy pre-configured node setup (generated with validator)
+COPY --chown=cintara:cintara preconfig/config/ /data/.tmp-cintarad/config/
+COPY --chown=cintara:cintara cintara-node/node-config.env /home/cintara/node-config.env
+
+# Set proper permissions
+RUN chown -R cintara:cintara /data /home/cintara
+
+# Create simple node startup script (no setup needed!)
+COPY <<EOF /usr/local/bin/start-preconfig-node.sh
+#!/bin/bash
+set -e
+
+echo "🚀 Starting Pre-configured Cintara Node"
+echo "======================================="
+
+# Ensure proper permissions
+chown -R cintara:cintara /data /home/cintara
+
+# Check if cintarad binary exists
+if ! command -v cintarad >/dev/null 2>&1; then
+    echo "❌ cintarad binary not found"
+    exit 1
+fi
+
+echo "✅ cintarad binary: \$(which cintarad)"
+echo "📋 Version: \$(cintarad version 2>/dev/null || echo 'version check failed')"
+
+# Check pre-configuration
+if [ ! -f "/data/.tmp-cintarad/config/genesis.json" ]; then
+    echo "❌ Pre-configured genesis not found"
+    exit 1
+fi
+
+# Verify validator exists
+VALIDATOR_COUNT=\$(cat /data/.tmp-cintarad/config/genesis.json | jq '.app_state.genutil.gen_txs | length')
+echo "✅ Genesis has \$VALIDATOR_COUNT validator(s)"
+
+if [ "\$VALIDATOR_COUNT" -gt 0 ]; then
+    echo "✅ Pre-configuration validated - starting node..."
+
+    # Start the node directly (no setup needed!)
+    exec su - cintara -c "cintarad start --home /data/.tmp-cintarad"
+else
+    echo "❌ Pre-configuration invalid - no validators in genesis"
+    exit 1
+fi
+EOF
+RUN chmod +x /usr/local/bin/start-preconfig-node.sh
+
+# Create LLM server stub
+COPY <<EOF /usr/local/bin/llama-server
+#!/bin/bash
+echo "🤖 Starting LLM server stub on port 8000..."
+while true; do
+    {
+        echo -e "HTTP/1.1 200 OK\\r\\nContent-Type: application/json\\r\\nConnection: close\\r\\n"
+        echo -e "\\r\\n{\"status\":\"ready\",\"model\":\"tinyllama\",\"context_length\":1024,\"endpoints\":[\"/completion\",\"/chat\"]}"
+    } | nc -l -p 8000 -q 1 2>/dev/null || sleep 3
+done
+EOF
+RUN chmod +x /usr/local/bin/llama-server
+
+# Create supervisor configuration
+COPY <<EOF /etc/supervisor/conf.d/supervisord.conf
+[supervisord]
+nodaemon=true
+user=root
+logfile=/var/log/supervisor/supervisord.log
+pidfile=/var/run/supervisord.pid
+
+[program:cintara-node]
+command=/usr/local/bin/start-preconfig-node.sh
+user=root
+directory=/home/cintara
+autostart=true
+autorestart=false
+startsecs=10
+stderr_logfile=/var/log/supervisor/cintara-node.err.log
+stdout_logfile=/var/log/supervisor/cintara-node.out.log
+priority=100
+
+[program:llama-server]
+command=/usr/local/bin/llama-server
+user=cintara
+directory=/models
+autostart=true
+autorestart=true
+stderr_logfile=/var/log/supervisor/llama-server.err.log
+stdout_logfile=/var/log/supervisor/llama-server.out.log
+priority=200
+
+[program:ai-bridge]
+command=/app/venv/bin/uvicorn app:app --host 0.0.0.0 --port 8080 --workers 1 --log-level info
+user=cintara
+directory=/app
+environment=LLAMA_SERVER_URL="http://localhost:8000",CINTARA_NODE_URL="http://localhost:26657",LOG_PATH="/app/logs",AI_FEATURES_ENABLED="true"
+autostart=true
+autorestart=true
+stderr_logfile=/var/log/supervisor/ai-bridge.err.log
+stdout_logfile=/var/log/supervisor/ai-bridge.out.log
+priority=300
+EOF
+
+# Create entrypoint
+COPY <<EOF /preconfig-entrypoint.sh
+#!/bin/bash
+set -e
+
+echo "🚀 Cintara Pre-configured Node (SecretNetwork Ready)"
+echo "🏗️  Built at: \${BUILD_TIMESTAMP:-unknown}"
+echo "🎯 Architecture: \${TARGET_ARCH:-x86_64}"
+echo "🔗 Chain ID: \${CHAIN_ID:-cintara_11001-1}"
+echo "⚡ Mode: Pre-configured (No Setup Required)"
+echo ""
+
+# Create log directories
+mkdir -p /var/log/supervisor /app/logs
+chown -R cintara:cintara /var/log/supervisor /app/logs /data /home/cintara /models /app
+
+echo "📊 Starting services with supervisor..."
+exec /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf
+EOF
+RUN chmod +x /preconfig-entrypoint.sh
+
+# Final setup
+RUN chown -R cintara:cintara /home/cintara /app /models
+WORKDIR /home/cintara
+
+# Add build info
+RUN echo "Build timestamp: ${BUILD_TIMESTAMP}" > /build-info.txt && \
+    echo "Target architecture: ${TARGET_ARCH}" >> /build-info.txt && \
+    echo "Setup mode: Pre-configured (SecretNetwork Ready)" >> /build-info.txt && \
+    echo "Chain ID: cintara_11001-1" >> /build-info.txt
+
+# Expose ports
+EXPOSE 26656 26657 1317 9090 8000 8080
+
+# Health check
+HEALTHCHECK --interval=60s --timeout=30s --start-period=120s --retries=5 \
+    CMD curl -f http://localhost:26657/status || exit 1
+
+# Start with pre-configured setup
+CMD ["/preconfig-entrypoint.sh"]

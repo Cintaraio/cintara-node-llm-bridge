@@ -1,0 +1,251 @@
+# Fixed Runtime Cintara Node Setup - Creates Proper Validator
+FROM ubuntu:22.04
+
+# Build arguments
+ARG BUILD_TIMESTAMP
+ARG TARGET_ARCH=x86_64
+ARG NODE_PASSWORD=RealNodePassword123!
+
+# Set environment variables
+ENV DEBIAN_FRONTEND=noninteractive
+ENV CHAIN_ID=cintara_11001-1
+ENV MONIKER=cintara-real-node
+ENV OVERWRITE_CONFIG=y
+ENV AUTO_START=true
+ENV TARGET_ARCH=${TARGET_ARCH}
+ENV NODE_PASSWORD=${NODE_PASSWORD}
+
+# Install system dependencies (including expect for automation)
+RUN apt-get update && apt-get install -y \
+    curl \
+    jq \
+    bash \
+    wget \
+    unzip \
+    build-essential \
+    git \
+    sudo \
+    python3 \
+    python3-pip \
+    python3-venv \
+    supervisor \
+    netcat \
+    expect \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create cintara user with sudo privileges
+RUN useradd -ms /bin/bash cintara && \
+    echo "cintara ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+
+# Create directories
+RUN mkdir -p /data /app /models /var/log/supervisor && \
+    chown -R cintara:cintara /data /home/cintara /app /models
+
+# Setup Python environment for AI bridge
+WORKDIR /app
+RUN python3 -m venv venv && \
+    . venv/bin/activate && \
+    pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir \
+        fastapi==0.104.1 \
+        uvicorn[standard]==0.24.0 \
+        requests==2.31.0 \
+        pydantic==2.5.0
+
+# Copy AI bridge application
+COPY bridge/app.py /app/app.py
+
+# Copy local cintara-testnet-scripts and node configuration
+COPY --chown=cintara:cintara cintara-testnet-scripts/ /home/cintara/cintara-testnet-script/
+COPY --chown=cintara:cintara cintara-node/node-config.env /home/cintara/node-config.env
+
+# Set working directory and permissions
+USER cintara
+WORKDIR /home/cintara/cintara-testnet-script
+RUN chmod +x cintara_ubuntu_node.sh install-go.sh
+
+# Switch back to root for system setup
+USER root
+
+# Create the fixed automated setup script
+COPY <<EOF /usr/local/bin/setup-and-start-node.sh
+#!/bin/bash
+set -e
+
+echo "🚀 Cintara Node Container Started (Fixed Version)"
+echo "🕒 Starting node setup with proper validator creation..."
+
+# Ensure proper permissions
+chown -R cintara:cintara /data /home/cintara
+
+# Check if node is already set up
+if command -v cintarad >/dev/null 2>&1 && [ -f "/data/.tmp-cintarad/config/genesis.json" ]; then
+    # Check if genesis has validators (the key fix!)
+    if [ "\$(cat /data/.tmp-cintarad/config/genesis.json | jq '.app_state.genutil.gen_txs | length')" -gt 0 ]; then
+        echo "✅ Node already configured with validator, starting directly..."
+        su - cintara -c "cintarad start --home /data/.tmp-cintarad"
+        exit 0
+    else
+        echo "⚠️ Node exists but missing validator, reconfiguring..."
+        rm -rf /data/.tmp-cintarad
+    fi
+fi
+
+echo "📋 Setting up node for the first time with validator creation..."
+
+# Switch to cintara user and run setup with proper automation
+su - cintara -c '
+    cd /home/cintara/cintara-testnet-script
+    source /home/cintara/node-config.env 2>/dev/null || true
+
+    echo "📋 Step 1: Making script executable"
+    chmod +x cintara_ubuntu_node.sh
+
+    echo "🚀 Step 2: Running setup with expect automation (creates validator!)"
+
+    # Use expect to properly handle the interactive setup
+    /usr/bin/expect << "EXPECT_EOF"
+set timeout 300
+spawn ./cintara_ubuntu_node.sh
+
+# Wait for node name prompt
+expect {
+    "Enter the Name for the node:" {
+        send "'"${MONIKER:-cintara-real-node}"'\r"
+        exp_continue
+    }
+    "Enter keyring passphrase" {
+        send "'"${NODE_PASSWORD:-RealNodePassword123!}"'\r"
+        exp_continue
+    }
+    "Re-enter keyring passphrase" {
+        send "'"${NODE_PASSWORD:-RealNodePassword123!}"'\r"
+        exp_continue
+    }
+    eof {
+        puts "Setup completed"
+    }
+    timeout {
+        puts "Setup timed out"
+        exit 1
+    }
+}
+EXPECT_EOF
+
+    echo "Node setup completed!"
+'
+
+# Verify setup was successful
+if command -v cintarad >/dev/null 2>&1; then
+    echo "✅ Setup completed successfully!"
+    echo "📋 Verifying genesis file has validator..."
+
+    VALIDATOR_COUNT=\$(cat /data/.tmp-cintarad/config/genesis.json | jq '.app_state.genutil.gen_txs | length')
+    if [ "\$VALIDATOR_COUNT" -gt 0 ]; then
+        echo "✅ Genesis has \$VALIDATOR_COUNT validator(s) - this should work!"
+    else
+        echo "❌ Genesis still has no validators - setup may have failed"
+    fi
+
+    echo "🚀 Starting node..."
+    su - cintara -c "cintarad start --home /data/.tmp-cintarad"
+else
+    echo "❌ Setup failed - cintarad binary not found"
+    exit 1
+fi
+EOF
+RUN chmod +x /usr/local/bin/setup-and-start-node.sh
+
+# Create LLM server stub
+COPY <<EOF /usr/local/bin/llama-server
+#!/bin/bash
+echo "🤖 Starting LLM server stub on port 8000..."
+while true; do
+    {
+        echo -e "HTTP/1.1 200 OK\\r\\nContent-Type: application/json\\r\\nConnection: close\\r\\n"
+        echo -e "\\r\\n{\"status\":\"ready\",\"model\":\"tinyllama\",\"context_length\":1024,\"endpoints\":[\"/completion\",\"/chat\"]}"
+    } | nc -l -p 8000 -q 1 2>/dev/null || sleep 3
+done
+EOF
+RUN chmod +x /usr/local/bin/llama-server
+
+# Create supervisor configuration
+COPY <<EOF /etc/supervisor/conf.d/supervisord.conf
+[supervisord]
+nodaemon=true
+user=root
+logfile=/var/log/supervisor/supervisord.log
+pidfile=/var/run/supervisord.pid
+
+[program:cintara-node-setup]
+command=/usr/local/bin/setup-and-start-node.sh
+user=root
+directory=/home/cintara/cintara-testnet-script
+autostart=true
+autorestart=false
+startsecs=10
+stderr_logfile=/var/log/supervisor/cintara-setup.err.log
+stdout_logfile=/var/log/supervisor/cintara-setup.out.log
+priority=100
+
+[program:llama-server]
+command=/usr/local/bin/llama-server
+user=cintara
+directory=/models
+autostart=true
+autorestart=true
+stderr_logfile=/var/log/supervisor/llama-server.err.log
+stdout_logfile=/var/log/supervisor/llama-server.out.log
+priority=200
+
+[program:ai-bridge]
+command=/app/venv/bin/uvicorn app:app --host 0.0.0.0 --port 8080 --workers 1 --log-level info
+user=cintara
+directory=/app
+environment=LLAMA_SERVER_URL="http://localhost:8000",CINTARA_NODE_URL="http://localhost:26657",LOG_PATH="/app/logs",AI_FEATURES_ENABLED="true"
+autostart=true
+autorestart=true
+stderr_logfile=/var/log/supervisor/ai-bridge.err.log
+stdout_logfile=/var/log/supervisor/ai-bridge.out.log
+priority=300
+EOF
+
+# Create entrypoint
+COPY <<EOF /runtime-entrypoint.sh
+#!/bin/bash
+set -e
+
+echo "🚀 Cintara Unified Node (Fixed Runtime Setup)"
+echo "🏗️  Built at: \${BUILD_TIMESTAMP:-unknown}"
+echo "🎯 Architecture: \${TARGET_ARCH:-x86_64}"
+echo "🔗 Chain ID: \${CHAIN_ID:-cintara_11001-1}"
+echo ""
+
+# Create log directories
+mkdir -p /var/log/supervisor /app/logs
+chown -R cintara:cintara /var/log/supervisor /app/logs /data /home/cintara /models /app
+
+echo "📊 Starting services with supervisor..."
+exec /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf
+EOF
+RUN chmod +x /runtime-entrypoint.sh
+
+# Final setup
+RUN chown -R cintara:cintara /home/cintara /app /models
+WORKDIR /home/cintara/cintara-testnet-script
+
+# Add build info
+RUN echo "Build timestamp: ${BUILD_TIMESTAMP}" > /build-info.txt && \
+    echo "Target architecture: ${TARGET_ARCH}" >> /build-info.txt && \
+    echo "Setup mode: Fixed Runtime with Validator Creation" >> /build-info.txt && \
+    echo "Chain ID: ${CHAIN_ID}" >> /build-info.txt
+
+# Expose ports
+EXPOSE 26656 26657 1317 9090 8000 8080
+
+# Health check
+HEALTHCHECK --interval=60s --timeout=30s --start-period=600s --retries=5 \
+    CMD curl -f http://localhost:26657/status || exit 1
+
+# Start with fixed runtime setup
+CMD ["/runtime-entrypoint.sh"]
