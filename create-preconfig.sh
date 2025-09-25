@@ -16,10 +16,11 @@ docker rm -f $TEMP_CONTAINER 2>/dev/null || true
 # Run container interactively to generate configuration
 echo "🚀 Running interactive setup to generate validator configuration..."
 
-# Use the working public ECR image
+# Use a simple ubuntu image with our local setup scripts
 docker run -d --name $TEMP_CONTAINER \
     -v cintara_preconfig_data:/data \
-    public.ecr.aws/b8j2u1c6/cintaraio/cintara-node-runtime:latest \
+    -v $(pwd)/cintara-testnet-scripts:/home/cintara/cintara-testnet-script \
+    ubuntu:22.04 \
     tail -f /dev/null
 
 echo "📋 Container created. Now generating configuration with expect automation..."
@@ -28,8 +29,8 @@ echo "📋 Container created. Now generating configuration with expect automatio
 docker exec -it $TEMP_CONTAINER bash -c '
 cd /home/cintara/cintara-testnet-script
 
-# Install expect inside container
-apt-get update && apt-get install -y expect
+# Install dependencies inside container
+apt-get update && apt-get install -y expect wget curl jq build-essential
 
 # Run setup with expect - handle all prompts
 /usr/bin/expect << "EOF"
