@@ -1,0 +1,64 @@
+version: '3.8'
+
+services:
+  cintara-node-runtime:
+    build:
+      context: .
+      dockerfile: Dockerfile.runtime-setup
+      args:
+        - BUILD_TIMESTAMP=${BUILD_TIMESTAMP:-$(date +%Y%m%d-%H%M%S)}
+        - TARGET_ARCH=${TARGET_ARCH:-x86_64}
+        - NODE_PASSWORD=${NODE_PASSWORD:-RealNodePassword123!}
+    image: cintara-node-runtime:latest
+    container_name: cintara-node-runtime
+    restart: unless-stopped
+    environment:
+      - CHAIN_ID=${CHAIN_ID:-cintara_11001-1}
+      - MONIKER=${MONIKER:-cintara-runtime-node}          # This is your node name
+      - OVERWRITE_CONFIG=${OVERWRITE_CONFIG:-y}           # Answer 'y' to overwrite configs
+      - NODE_PASSWORD=${NODE_PASSWORD:-RealNodePassword123!}    # Your keyring password
+      - AUTO_START=${AUTO_START:-true}
+    ports:
+      # Blockchain ports
+      - "26656:26656"  # P2P port
+      - "26657:26657"  # RPC port
+      - "1317:1317"    # REST API port
+      - "9090:9090"    # gRPC port
+      # Service ports
+      - "8000:8000"    # LLM server
+      - "8080:8080"    # AI bridge
+    volumes:
+      # Persistent data storage
+      - cintara_node_data:/data
+      - cintara_logs:/var/log/supervisor
+      - cintara_app_logs:/app/logs
+    networks:
+      - cintara-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:26657/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 600s  # Give 10 minutes for initial setup
+
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+          cpus: '2.0'
+        reservations:
+          memory: 2G
+          cpus: '1.0'
+
+volumes:
+  cintara_node_data:
+    driver: local
+  cintara_logs:
+    driver: local
+  cintara_app_logs:
+    driver: local
+
+networks:
+  cintara-network:
+    driver: bridge

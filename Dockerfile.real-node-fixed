@@ -74,15 +74,23 @@ RUN python3 -m venv venv && \
 # Copy AI bridge application
 COPY bridge/app.py /app/app.py
 
-# Clone and setup Cintara testnet script as cintara user
-USER cintara
-WORKDIR /home/cintara
-RUN git clone https://github.com/Cintaraio/cintara-testnet-script.git && \
-    chown -R cintara:cintara cintara-testnet-script
-
-# Copy node configuration
+# Copy local cintara-testnet-scripts and node configuration
 USER root
+COPY --chown=cintara:cintara cintara-testnet-scripts/ /home/cintara/cintara-testnet-script/
 COPY --chown=cintara:cintara cintara-node/node-config.env /home/cintara/node-config.env
+
+# Verify copied files
+RUN echo "📁 Files copied to container:" && \
+    ls -la /home/cintara/cintara-testnet-script/ && \
+    ls -la /home/cintara/node-config.env
+
+# Set proper permissions
+USER cintara
+WORKDIR /home/cintara/cintara-testnet-script
+RUN chmod +x cintara_ubuntu_node.sh install-go.sh
+
+# Switch back to root for the setup process
+USER root
 
 # Create automated setup script with real node configuration
 COPY <<EOF /usr/local/bin/setup-real-node.sh
@@ -108,29 +116,40 @@ chown -R cintara:cintara /home/cintara /data
 # Source environment
 source /home/cintara/node-config.env 2>/dev/null || echo "Using defaults"
 
-# Create input for automated setup - using echo commands
-echo "\$MONIKER" > /tmp/node_setup_input
-echo "\$OVERWRITE_CONFIG" >> /tmp/node_setup_input
-echo "\$NODE_PASSWORD" >> /tmp/node_setup_input
-echo "\$NODE_PASSWORD" >> /tmp/node_setup_input
+# Create input for automated setup - exactly as per PDF guide requirements
+echo "Creating automated input for cintara_ubuntu_node.sh..."
 
+# The script expects:
+# 1. Node name
+# 2. Overwrite config (y/n)
+# 3. Password (first time)
+# 4. Password (confirmation)
+
+cat > /tmp/node_setup_input << 'INPUT_EOF'
+\$MONIKER
+\$OVERWRITE_CONFIG
+\$NODE_PASSWORD
+\$NODE_PASSWORD
+INPUT_EOF
+
+echo "Input file created for automated setup"
 echo "Starting node setup process..."
 
-# Run setup with timeout and proper error handling
-# Set non-interactive environment variables to prevent prompts
-export DEBIAN_FRONTEND=noninteractive
-export CI=true
-export BATCH_MODE=1
-
+# Run the setup script exactly as shown in the PDF guide but automated
 su - cintara -c "
     cd /home/cintara/cintara-testnet-script && \
     source /home/cintara/node-config.env 2>/dev/null || true && \
     export CHAIN_ID=\$CHAIN_ID && \
     export MONIKER='\$MONIKER' && \
-    export DEBIAN_FRONTEND=noninteractive && \
-    export CI=true && \
-    export BATCH_MODE=1 && \
-    timeout 300 ./cintara_ubuntu_node.sh < /tmp/node_setup_input 2>&1 | tee /tmp/setup.log
+
+    echo '📋 Running: chmod +x cintara_ubuntu_node.sh' && \
+    chmod +x cintara_ubuntu_node.sh && \
+
+    echo '🚀 Running: ./cintara_ubuntu_node.sh with automated input' && \
+    timeout 300 bash -c './cintara_ubuntu_node.sh < /tmp/node_setup_input' 2>&1 | tee /tmp/setup.log || {
+        echo 'Setup failed, trying with sudo as suggested in PDF guide...'
+        timeout 300 sudo ./cintara_ubuntu_node.sh < /tmp/node_setup_input 2>&1 | tee -a /tmp/setup.log
+    }
 " || {
     echo "⚠️  Node setup encountered issues, checking status..."
 
@@ -229,18 +248,38 @@ if command -v cintarad >/dev/null 2>&1; then
 
     if [ -f "\$HOME_DIR/config/config.toml" ]; then
         echo "✅ Using configuration from \$HOME_DIR"
-        exec cintarad start \\
-            --home "\$HOME_DIR" \\
-            --rpc.laddr tcp://0.0.0.0:26657 \\
-            --grpc.address 0.0.0.0:9090 \\
-            --log_level info
+
+        # Copy working genesis file if it exists
+        if [ -f "/home/cintara/cintara-testnet-script/genesis.json" ]; then
+            echo "📄 Installing working genesis file..."
+            cp /home/cintara/cintara-testnet-script/genesis.json "\$HOME_DIR/config/genesis.json"
+            chown cintara:cintara "\$HOME_DIR/config/genesis.json"
+        fi
+
+        # Ensure chain ID is set in client.toml
+        if [ -f "\$HOME_DIR/config/client.toml" ]; then
+            sed -i "s/chain-id = .*/chain-id = \\"\${CHAIN_ID:-cintara_11001-1}\\"/" "\$HOME_DIR/config/client.toml"
+        fi
+
+        # Start node exactly as shown in PDF guide
+        exec cintarad start --home "\$HOME_DIR"
     elif [ -f "\$DATA_DIR/config/config.toml" ]; then
         echo "✅ Using configuration from \$DATA_DIR"
-        exec cintarad start \\
-            --home "\$DATA_DIR" \\
-            --rpc.laddr tcp://0.0.0.0:26657 \\
-            --grpc.address 0.0.0.0:9090 \\
-            --log_level info
+
+        # Copy working genesis file if it exists
+        if [ -f "/home/cintara/cintara-testnet-script/genesis.json" ]; then
+            echo "📄 Installing working genesis file..."
+            cp /home/cintara/cintara-testnet-script/genesis.json "\$DATA_DIR/config/genesis.json"
+            chown cintara:cintara "\$DATA_DIR/config/genesis.json"
+        fi
+
+        # Ensure chain ID is set in client.toml
+        if [ -f "\$DATA_DIR/config/client.toml" ]; then
+            sed -i "s/chain-id = .*/chain-id = \\"\${CHAIN_ID:-cintara_11001-1}\\"/" "\$DATA_DIR/config/client.toml"
+        fi
+
+        # Start node exactly as shown in PDF guide
+        exec cintarad start --home "\$DATA_DIR"
     else
         echo "❌ No configuration found, attempting to initialize..."
 
@@ -253,12 +292,21 @@ if command -v cintarad >/dev/null 2>&1; then
         # Initialize node if needed
         cintarad init "\${MONIKER:-cintara-real-node}" --chain-id "\${CHAIN_ID:-cintara_11001-1}" --home "\$DATA_DIR" || echo "Init failed, using existing"
 
+        # Install the correct genesis file after initialization
+        if [ -f "/home/cintara/cintara-testnet-script/genesis.json" ]; then
+            echo "📄 Installing working genesis file..."
+            cp /home/cintara/cintara-testnet-script/genesis.json "\$DATA_DIR/config/genesis.json"
+            chown cintara:cintara "\$DATA_DIR/config/genesis.json"
+        fi
+
+        # Ensure chain ID is set in client.toml
+        if [ -f "\$DATA_DIR/config/client.toml" ]; then
+            sed -i "s/chain-id = .*/chain-id = \\"\${CHAIN_ID:-cintara_11001-1}\\"/" "\$DATA_DIR/config/client.toml"
+        fi
+
         # Try to start anyway
-        exec cintarad start \\
-            --home "\$DATA_DIR" \\
-            --rpc.laddr tcp://0.0.0.0:26657 \\
-            --grpc.address 0.0.0.0:9090 \\
-            --log_level info
+        # Start node exactly as shown in PDF guide
+        exec cintarad start --home "\$DATA_DIR"
     fi
 else
     echo "❌ cintarad not found, this means node setup failed during build"
