@@ -67,6 +67,7 @@ echo "📂 Extracting generated configuration files..."
 
 mkdir -p preconfig/
 docker cp $TEMP_CONTAINER:/data/.tmp-cintarad/config/ preconfig/
+docker cp $TEMP_CONTAINER:/data/.tmp-cintarad/data/ preconfig/
 
 echo "🔍 Verifying generated configuration..."
 

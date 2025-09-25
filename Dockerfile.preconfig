@@ -56,6 +56,7 @@ RUN wget -O /usr/local/bin/cintarad \
 
 # Copy pre-configured node setup (generated with validator)
 COPY --chown=cintara:cintara preconfig/config/ /data/.tmp-cintarad/config/
+COPY --chown=cintara:cintara preconfig/data/ /data/.tmp-cintarad/data/
 COPY --chown=cintara:cintara cintara-node/node-config.env /home/cintara/node-config.env
 
 # Set proper permissions
@@ -85,6 +86,14 @@ echo "📋 Version: \$(cintarad version 2>/dev/null || echo 'version check faile
 if [ ! -f "/data/.tmp-cintarad/config/genesis.json" ]; then
     echo "❌ Pre-configured genesis not found"
     exit 1
+fi
+
+# Check for validator state file
+if [ ! -f "/data/.tmp-cintarad/data/priv_validator_state.json" ]; then
+    echo "⚠️ Missing priv_validator_state.json, creating default..."
+    mkdir -p /data/.tmp-cintarad/data
+    echo '{"height":"0","round":0,"step":0}' > /data/.tmp-cintarad/data/priv_validator_state.json
+    chown cintara:cintara /data/.tmp-cintarad/data/priv_validator_state.json
 fi
 
 # Verify validator exists
