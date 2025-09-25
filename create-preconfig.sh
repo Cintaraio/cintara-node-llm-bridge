@@ -31,14 +31,18 @@ cd /home/cintara/cintara-testnet-script
 # Install expect inside container
 apt-get update && apt-get install -y expect
 
-# Run setup with expect
+# Run setup with expect - handle all prompts
 /usr/bin/expect << "EOF"
-set timeout 300
+set timeout 600
 spawn ./cintara_ubuntu_node.sh
 
 expect {
     "Enter the Name for the node:" {
         send "cintara-preconfigured-node\r"
+        exp_continue
+    }
+    "Overwrite the existing configuration and start a new local node? \[y/n\]" {
+        send "y\r"
         exp_continue
     }
     "Enter keyring passphrase" {
@@ -49,12 +53,19 @@ expect {
         send "PreConfigPassword123!\r"
         exp_continue
     }
+    -re ".*password.*:" {
+        send "PreConfigPassword123!\r"
+        exp_continue
+    }
+    "File at" {
+        puts "Genesis file created successfully"
+        exp_continue
+    }
     eof {
         puts "Setup completed successfully"
     }
     timeout {
-        puts "Setup timed out"
-        exit 1
+        puts "Setup timed out - but may have partially completed"
     }
 }
 EOF
@@ -62,12 +73,32 @@ EOF
 echo "Configuration generated successfully!"
 '
 
+# Check if configuration was actually created
+echo "🔍 Checking if configuration was created..."
+if docker exec $TEMP_CONTAINER [ -f "/data/.tmp-cintarad/config/genesis.json" ]; then
+    echo "✅ Configuration files found"
+else
+    echo "❌ Configuration files not found - setup may have failed"
+    echo "📋 Container logs:"
+    docker logs $TEMP_CONTAINER --tail 20
+    exit 1
+fi
+
 # Extract the generated configuration files
 echo "📂 Extracting generated configuration files..."
 
 mkdir -p preconfig/
 docker cp $TEMP_CONTAINER:/data/.tmp-cintarad/config/ preconfig/
-docker cp $TEMP_CONTAINER:/data/.tmp-cintarad/data/ preconfig/
+
+# Try to copy data directory (may not exist if setup incomplete)
+if docker exec $TEMP_CONTAINER [ -d "/data/.tmp-cintarad/data" ]; then
+    echo "📂 Copying data directory..."
+    docker cp $TEMP_CONTAINER:/data/.tmp-cintarad/data/ preconfig/
+else
+    echo "⚠️ Data directory not found, creating minimal data setup..."
+    mkdir -p preconfig/data
+    echo '{"height":"0","round":0,"step":0}' > preconfig/data/priv_validator_state.json
+fi
 
 echo "🔍 Verifying generated configuration..."
 
