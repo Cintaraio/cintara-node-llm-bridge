@@ -7,8 +7,16 @@ This guide shows how to deploy the Cintara node on Secret Network using pre-buil
 ## Architecture
 
 ```
-EC2 (Build) → AWS ECR (Store) → SecretVM (Deploy)
+EC2 (Build) → AWS ECR Public Registry (Store) → SecretVM (Deploy)
 ```
+
+## Why Public ECR?
+
+- ✅ **No authentication required** on SecretVM
+- ✅ **Faster deployment** - no ECR login needed
+- ✅ **Easier sharing** - anyone can access the images
+- ✅ **Cost effective** - public repositories are free
+- ✅ **Perfect for open source projects** like Cintara
 
 ## Step 1: Build and Push to ECR (Done on EC2)
 
@@ -20,8 +28,11 @@ git pull origin feat/unified-automated-setup
 # Build the runtime image
 ./build-runtime-setup.sh
 
-# Push to AWS ECR
+# Push to public ECR (default)
 ./push-runtime-to-ecr.sh
+
+# Or push to private ECR (if needed)
+USE_PUBLIC_ECR=false ./push-runtime-to-ecr.sh
 ```
 
 This will:
@@ -34,22 +45,21 @@ This will:
 ### Option A: Quick Deploy with Environment Variables
 
 ```bash
-# On SecretVM, set your configuration
-export ECR_REGISTRY="123456789012.dkr.ecr.us-east-1.amazonaws.com"
-export IMAGE_TAG="latest"
+# On SecretVM, set your configuration (using public ECR - no auth needed!)
 export MONIKER="my-secretvm-node"
 export NODE_PASSWORD="MySecurePassword123!"
 
-# Deploy
+# Deploy (uses public ECR by default)
 docker-compose -f docker-compose.secretvm-runtime.yml up -d
 ```
 
 ### Option B: Using .env File (Recommended)
 
 ```bash
-# On SecretVM, create .env file
+# On SecretVM, create .env file (using public ECR)
 cat > .env << 'EOF'
-ECR_REGISTRY=123456789012.dkr.ecr.us-east-1.amazonaws.com
+# Public ECR - no authentication required
+ECR_REGISTRY=public.ecr.aws/cintara/cintara-node-runtime
 IMAGE_TAG=latest
 MONIKER=my-secretvm-node
 NODE_PASSWORD=MySecurePassword123!
