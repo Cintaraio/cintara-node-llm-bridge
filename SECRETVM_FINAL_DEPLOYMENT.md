@@ -35,24 +35,38 @@ After deployment (wait ~2 minutes):
 # 1. Check container status
 docker ps | grep cintara
 
-# 2. Test node API
+# 2. Test Blockchain Node (primary service)
 curl -s http://localhost:26657/status | jq '.result.node_info.moniker'
 # Should return: "cintara-preconfigured-node"
 
-# 3. Check network connection
+# 3. Test AI Bridge Service
+curl -s http://localhost:8080/health || echo "AI Bridge: Port 8080"
+# Should respond or show connection
+
+# 4. Test LLM Server
+curl -s http://localhost:8000 | jq
+# Should return: {"status":"ready","model":"tinyllama",...}
+
+# 5. Check network connection
 curl -s http://localhost:26657/net_info | jq '.result.n_peers'
 # Should show: number > 0 (connected to peers)
 
-# 4. Check if node appears in testnet
+# 6. Check if node appears in testnet
 curl -s https://testnet.cintara.io/nodes | jq
 ```
 
 ## 🌟 **Key Features**
 
+### **Unified Container Architecture:**
+- 🔗 **Cintara Blockchain Node** (cintarad) - Port 26657
+- 🤖 **AI Bridge FastAPI** - Port 8080 (connects AI to blockchain)
+- 🧠 **LLM Server Stub** - Port 8000 (tinyllama compatible)
+- 📊 **Supervisor Management** - All services in one container
+
+### **Deployment Benefits:**
 - ✅ **Zero configuration** - everything pre-configured
 - ✅ **No interaction needed** - starts automatically
 - ✅ **Includes validator** - should appear in testnet.cintara.io/nodes
-- ✅ **Multi-service** - blockchain + AI bridge + LLM server
 - ✅ **Auto-restart** - resilient to crashes
 - ✅ **Persistent data** - survives container restarts
 
