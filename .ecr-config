@@ -1,0 +1,13 @@
+# ECR Configuration
+# Edit these values to match your ECR registry setup
+
+# Public ECR settings
+REGISTRY_ALIAS=b8j2u1c6
+NAMESPACE=cintaraio
+ECR_REPOSITORY=cintara-node-runtime
+
+# Private ECR settings
+ECR_REGION=us-east-1
+
+# Image settings
+IMAGE_TAG=latest

@@ -59,7 +59,7 @@ docker-compose -f docker-compose.secretvm-runtime.yml up -d
 # On SecretVM, create .env file (using public ECR)
 cat > .env << 'EOF'
 # Public ECR - no authentication required
-ECR_REGISTRY=public.ecr.aws/cintara/cintara-node-runtime
+ECR_REGISTRY=public.ecr.aws/b8j2u1c6/cintaraio/cintara-node-runtime
 IMAGE_TAG=latest
 MONIKER=my-secretvm-node
 NODE_PASSWORD=MySecurePassword123!

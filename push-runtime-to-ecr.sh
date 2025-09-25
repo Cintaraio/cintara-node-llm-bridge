@@ -2,10 +2,18 @@
 # Push Runtime Setup Cintara Node to AWS ECR
 set -e
 
-# Configuration
+# Load configuration from .ecr-config if it exists
+if [ -f ".ecr-config" ]; then
+    echo "📋 Loading ECR configuration from .ecr-config..."
+    source .ecr-config
+fi
+
+# Configuration (with defaults)
 ECR_REGION="${ECR_REGION:-us-east-1}"
 ECR_REPOSITORY="${ECR_REPOSITORY:-cintara-node-runtime}"
 IMAGE_TAG="${IMAGE_TAG:-latest}"
+REGISTRY_ALIAS="${REGISTRY_ALIAS:-b8j2u1c6}"
+NAMESPACE="${NAMESPACE:-cintaraio}"
 BUILD_TIMESTAMP=$(date +%Y%m%d-%H%M%S)
 USE_PUBLIC_ECR="${USE_PUBLIC_ECR:-true}"  # Default to public ECR for SecretNetwork access
 
@@ -38,12 +46,12 @@ fi
 if [ "$USE_PUBLIC_ECR" = "true" ]; then
     # Public ECR configuration
     ECR_REGISTRY="public.ecr.aws"
-    REGISTRY_ALIAS="${REGISTRY_ALIAS:-cintara}"  # You'll need to set this
-    FULL_REPOSITORY="$ECR_REGISTRY/$REGISTRY_ALIAS/$ECR_REPOSITORY"
+    FULL_REPOSITORY="$ECR_REGISTRY/$REGISTRY_ALIAS/$NAMESPACE/$ECR_REPOSITORY"
 
     echo "🌐 Using Public ECR"
     echo "📦 Registry: $ECR_REGISTRY"
     echo "🏷️  Alias: $REGISTRY_ALIAS"
+    echo "🏢 Namespace: $NAMESPACE"
     echo "📦 Full Repository: $FULL_REPOSITORY"
     echo ""
 
@@ -53,7 +61,7 @@ if [ "$USE_PUBLIC_ECR" = "true" ]; then
 
     # Create public repository if it doesn't exist
     echo "📦 Creating public ECR repository if needed..."
-    aws ecr-public create-repository --repository-name $ECR_REPOSITORY --region us-east-1 2>/dev/null || echo "Repository already exists"
+    aws ecr-public create-repository --repository-name $NAMESPACE/$ECR_REPOSITORY --region us-east-1 2>/dev/null || echo "Repository already exists"
 
 else
     # Private ECR configuration (original)
@@ -112,7 +120,7 @@ echo "1. Create .env file on SecretVM:"
 if [ "$USE_PUBLIC_ECR" = "true" ]; then
 cat << 'ENV_EXAMPLE'
 # SecretVM Configuration (Public ECR)
-ECR_REGISTRY=public.ecr.aws/cintara/cintara-node-runtime
+ECR_REGISTRY=public.ecr.aws/b8j2u1c6/cintaraio/cintara-node-runtime
 IMAGE_TAG=latest
 MONIKER=my-secretvm-node
 NODE_PASSWORD=MySecurePassword123!
