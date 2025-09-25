@@ -25,6 +25,7 @@ RUN apt-get update && apt-get install -y \
     python3-venv \
     supervisor \
     netcat \
+    sed \
     && rm -rf /var/lib/apt/lists/*
 
 # Create cintara user with sudo privileges
@@ -94,6 +95,18 @@ if [ ! -f "/data/.tmp-cintarad/data/priv_validator_state.json" ]; then
     mkdir -p /data/.tmp-cintarad/data
     echo '{"height":"0","round":0,"step":0}' > /data/.tmp-cintarad/data/priv_validator_state.json
     chown cintara:cintara /data/.tmp-cintarad/data/priv_validator_state.json
+fi
+
+# Update moniker if MONIKER environment variable is set
+if [ ! -z "\$MONIKER" ]; then
+    echo "🏷️  Updating node moniker to: \$MONIKER"
+    if [ -f "/data/.tmp-cintarad/config/config.toml" ]; then
+        # Update moniker in config.toml
+        sed -i "s/^moniker = .*/moniker = \\\"\$MONIKER\\\"/" /data/.tmp-cintarad/config/config.toml
+        echo "✅ Moniker updated in config.toml"
+    else
+        echo "⚠️ config.toml not found, moniker will use default"
+    fi
 fi
 
 # Verify validator exists
