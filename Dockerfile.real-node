@@ -80,7 +80,7 @@ USER root
 COPY --chown=cintara:cintara cintara-node/node-config.env /home/cintara/node-config.env
 
 # Create automated setup script with real node configuration
-RUN cat > /usr/local/bin/setup-real-node.sh << 'EOF'
+COPY <<EOF /usr/local/bin/setup-real-node.sh
 #!/bin/bash
 set -e
 
