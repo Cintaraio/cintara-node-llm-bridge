@@ -233,8 +233,6 @@ if command -v cintarad >/dev/null 2>&1; then
             --home "\$HOME_DIR" \\
             --rpc.laddr tcp://0.0.0.0:26657 \\
             --grpc.address 0.0.0.0:9090 \\
-            --api.address tcp://0.0.0.0:1317 \\
-            --api.enable true \\
             --log_level info
     elif [ -f "\$DATA_DIR/config/config.toml" ]; then
         echo "✅ Using configuration from \$DATA_DIR"
@@ -242,8 +240,6 @@ if command -v cintarad >/dev/null 2>&1; then
             --home "\$DATA_DIR" \\
             --rpc.laddr tcp://0.0.0.0:26657 \\
             --grpc.address 0.0.0.0:9090 \\
-            --api.address tcp://0.0.0.0:1317 \\
-            --api.enable true \\
             --log_level info
     else
         echo "❌ No configuration found, attempting to initialize..."
@@ -262,8 +258,6 @@ if command -v cintarad >/dev/null 2>&1; then
             --home "\$DATA_DIR" \\
             --rpc.laddr tcp://0.0.0.0:26657 \\
             --grpc.address 0.0.0.0:9090 \\
-            --api.address tcp://0.0.0.0:1317 \\
-            --api.enable true \\
             --log_level info
     fi
 else
